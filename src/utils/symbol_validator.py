@@ -26,7 +26,7 @@ class SymbolValidator:
     and providing fallback formats when needed.
     """
     
-    def __init__(self, config_path='config/config.yaml'):
+    def __init__(self, config_path='../config/config.yaml'):
         """
         Initialize symbol validator
         
