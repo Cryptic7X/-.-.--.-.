@@ -79,43 +79,40 @@ class CryptoAlertSystem:
     def run_daily_market_scan(self, force_refresh=False):
         """
         Run daily market data collection and filtering
-        This should run once per day to refresh the coin lists
-        
+        Should run once per day to refresh the coin lists
+
         Args:
-            force_refresh: Force fresh data fetch
-            
+            force_refresh: Force fresh data fetch ignoring cache
+
         Returns:
             dict: Filtered coin lists
         """
-        
         print("\n📊 Starting daily market scan...")
-        
+
         try:
-            # Fetch comprehensive market data (6 pages = 1,500 coins)
+            # Corrected call: only pass force_refresh (no extra args)
             market_data = self.data_fetcher.fetch_comprehensive_market_data(force_refresh)
-            
             if not market_data:
                 raise Exception("No market data received from CoinGecko")
-            
+
             # Apply market filters
             filtered_coins = self.market_filter.filter_coins(market_data)
-            
+
             # Cache filtered results
             self._cache_filtered_coins(filtered_coins)
-            
+
             # Display summary
-            print(f"✅ Daily scan complete:")
-            print(f"   📈 Standard coins: {len(filtered_coins['standard'])}")  
+            print("✅ Daily scan complete:")
+            print(f"   📈 Standard coins: {len(filtered_coins['standard'])}")
             print(f"   ⚡ High-risk coins: {len(filtered_coins['high_risk'])}")
             print(f"   📊 Total coins processed: {len(market_data)}")
-            
+
             return filtered_coins
-            
+
         except Exception as e:
-            print(f"❌ Daily scan error: {str(e)}")
+            print(f"❌ Daily scan error: {e}")
             self.stats['errors'] += 1
-            
-            # Try to load cached data as fallback
+            # Fallback to cached data
             return self._load_cached_coins()
     
     def run_signal_detection(self):
@@ -329,22 +326,21 @@ class CryptoAlertSystem:
     def _cache_filtered_coins(self, filtered_coins):
         """Cache filtered coin data"""
         try:
-            cache_file = 'cache/filtered_coins.json'
+            cache_file = os.path.join(os.path.dirname(__file__), '../cache/filtered_coins.json')
             with open(cache_file, 'w') as f:
                 json.dump(filtered_coins, f)
         except Exception as e:
             print(f"Cache write error: {e}")
-    
+
     def _load_cached_coins(self):
         """Load cached filtered coin data"""
-        try:
-            cache_file = 'cache/filtered_coins.json'
-            if os.path.exists(cache_file):
+        cache_file = os.path.join(os.path.dirname(__file__), '../cache/filtered_coins.json')
+        if os.path.exists(cache_file):
+            try:
                 with open(cache_file, 'r') as f:
                     return json.load(f)
-        except Exception as e:
-            print(f"Cache read error: {e}")
-        
+            except Exception as e:
+                print(f"Cache read error: {e}")
         return {'standard': [], 'high_risk': []}
     
     def get_system_status(self):
@@ -365,41 +361,36 @@ class CryptoAlertSystem:
 def main():
     """
     Main entry point for the system
-    Can be called with different modes:
-    - daily_scan: Run daily market data collection
-    - signal_detection: Run 10-minute signal detection
-    - status: Show system status
+    Usage: python main.py [daily_scan|signal_detection|status]
     """
-    
     if len(sys.argv) < 2:
         print("Usage: python main.py [daily_scan|signal_detection|status]")
         return
-    
+
     mode = sys.argv[1].lower()
-    
+
     try:
-        # Initialize system
-        system = CryptoAlertSystem('../config/config.yaml')
-        
+        system = CryptoAlertSystem()
+
         if mode == 'daily_scan':
             system.run_daily_market_scan()
-            
+
         elif mode == 'signal_detection':
             system.run_signal_detection()
-            
+
         elif mode == 'status':
             status = system.get_system_status()
             print(json.dumps(status, indent=2, default=str))
-            
+
         else:
             print(f"Unknown mode: {mode}")
             print("Available modes: daily_scan, signal_detection, status")
-    
+
     except KeyboardInterrupt:
         print("\n🛑 System stopped by user")
-    
+
     except Exception as e:
-        print(f"\n💥 System error: {str(e)}")
+        print(f"\n💥 System error: {e}")
         traceback.print_exc()
 
 
