@@ -36,7 +36,6 @@ jobs:
         TELEGRAM_STANDARD_CHAT_ID: ${{ secrets.TELEGRAM_STANDARD_CHAT_ID }}
         TELEGRAM_HIGHRISK_CHAT_ID: ${{ secrets.TELEGRAM_HIGHRISK_CHAT_ID }}
       run: |
-        cd src
         python main.py daily_scan
     
     - name: Upload cache artifacts
