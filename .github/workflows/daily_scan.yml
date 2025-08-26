@@ -39,12 +39,16 @@ jobs:
       run: python main.py daily_scan
 
     
+    - name: Create cache directory
+      run: mkdir -p src/cache
+      
     - name: Upload cache artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: market-data-cache
-        path: cache/
+        path: src/cache/
         retention-days: 1
+
     
     - name: Send status notification
       if: failure()
