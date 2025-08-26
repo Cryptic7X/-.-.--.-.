@@ -30,7 +30,7 @@ jobs:
       run: mkdir -p cache logs
     
     - name: Download cache artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: market-data-cache
         path: cache/
@@ -49,7 +49,7 @@ jobs:
         python main.py signal_detection
     
     - name: Upload updated cache
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: market-data-cache
         path: cache/
@@ -57,7 +57,7 @@ jobs:
     
     - name: Upload logs
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: signal-logs-${{ github.run_number }}
         path: logs/
