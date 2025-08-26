@@ -26,7 +26,7 @@ class DataFetcher:
     Multi-source cryptocurrency data fetcher with caching and fallback
     """
     
-    def __init__(self, config_path='config/config.yaml'):
+    def __init__(self, config_path='../config/config.yaml'):
         """
         Initialize DataFetcher with configuration
         
