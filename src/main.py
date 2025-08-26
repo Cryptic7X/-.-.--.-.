@@ -379,7 +379,7 @@ def main():
     
     try:
         # Initialize system
-        system = CryptoAlertSystem()
+        system = CryptoAlertSystem('../config/config.yaml')
         
         if mode == 'daily_scan':
             system.run_daily_market_scan()
