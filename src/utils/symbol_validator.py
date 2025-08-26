@@ -53,7 +53,7 @@ class SymbolValidator:
     
     def _load_symbol_mappings(self):
         """Load symbol mappings from JSON file"""
-        mapping_file = 'config/symbol_mapping.json'
+        mapping_file = '../config/symbol_mapping.json'
         
         if os.path.exists(mapping_file):
             try:
