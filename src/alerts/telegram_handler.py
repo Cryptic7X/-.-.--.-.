@@ -31,7 +31,7 @@ class TelegramAlert:
     with automatic retry and rate limiting.
     """
     
-    def __init__(self, config_path='config/config.yaml'):
+    def __init__(self, config_path='../config/config.yaml'):
         """
         Initialize Telegram alert handler
         
