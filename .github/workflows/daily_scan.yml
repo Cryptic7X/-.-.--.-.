@@ -40,7 +40,7 @@ jobs:
         python main.py daily_scan
     
     - name: Upload cache artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: market-data-cache
         path: cache/
