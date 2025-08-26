@@ -1,0 +1,67 @@
+# API Configuration
+apis:
+  coingecko:
+    base_url: "https://api.coingecko.com/api/v3"
+    demo_key: "${COINGECKO_API_KEY}"  # Optional for demo
+    requests_per_minute: 50
+  
+  bingx:
+    base_url: "https://open-api.bingx.com"
+    api_key: "${BINGX_API_KEY}"
+    api_secret: "${BINGX_API_SECRET}"
+    requests_per_10s: 100
+  
+  telegram:
+    bot_token: "${TELEGRAM_BOT_TOKEN}"
+    standard_chat_id: "${TELEGRAM_STANDARD_CHAT_ID}"  # Standard signals channel
+    highrisk_chat_id: "${TELEGRAM_HIGHRISK_CHAT_ID}"  # High-risk signals channel
+
+# Market Filtering Criteria
+market_filters:
+  standard:
+    market_cap_min: 500000000      # $500M
+    volume_24h_min: 30000000       # $30M
+  
+  high_risk:
+    market_cap_min: 10000000       # $10M  
+    market_cap_max: 500000000      # $500M
+    volume_24h_min: 10000000       # $10M
+
+# Indicator Settings (Validated Backtest Parameters)
+indicators:
+  cipherb:
+    wt_channel_len: 9
+    wt_average_len: 12
+    wt_ma_len: 3
+    oversold_level: -60
+    overbought_level: 60
+  
+  stoch_rsi:
+    period: 14
+    stoch_period: 14
+    k_period: 3
+    d_period: 3
+    oversold_level: 20
+    overbought_level: 80
+
+# Alert System Configuration
+alerts:
+  cooldown_hours: 2
+  max_alerts_per_hour: 20
+  include_chart_links: true
+  timezone: "Asia/Kolkata"  # UTC+5:30
+
+# Data Management
+data:
+  cache_duration_hours: 24
+  max_pages_coingecko: 6        # 1,500 coins total
+  coins_per_page: 250
+  timeframe: "1h"
+  candles_needed: 50            # For indicator calculations
+
+# System Settings
+system:
+  log_level: "INFO"
+  retry_attempts: 3
+  retry_delay_seconds: 5
+  max_processing_time_minutes: 8
