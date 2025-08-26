@@ -12,185 +12,98 @@ Optimized for free API tier usage with intelligent caching.
 
 import requests
 import pandas as pd
-import numpy as np
 import time
 import json
 import os
-from datetime import datetime, timedelta
 import ccxt
 import yaml
 
 
 class DataFetcher:
-    """
-    Multi-source cryptocurrency data fetcher with caching and fallback
-    """
-    
     def __init__(self, config_path='../config/config.yaml'):
-        """
-        Initialize DataFetcher with configuration
-        
-        Args:
-            config_path: Path to configuration file
-        """
-        
         # Load configuration
         self.config = self._load_config(config_path)
-        self.cache_dir = 'cache'
-        self._ensure_cache_dir()
-        
-        # API endpoints and settings
-        self.coingecko_base = self.config['apis']['coingecko']['base_url']
+        self.cache_dir = 'src/cache'
+        os.makedirs(self.cache_dir, exist_ok=True)
+
+        # CoinGecko settings
+        cg_cfg = self.config['apis']['coingecko']
+        self.coingecko_base = cg_cfg['base_url']
         self.coingecko_key = os.getenv('COINGECKO_API_KEY', '')
-        
-        # Rate limiting
-        self.last_coingecko_call = 0
-        self.coingecko_delay = 60 / self.config['apis']['coingecko']['requests_per_minute']
-        
-        # Initialize exchanges
+        self.rate_limit_per_min = cg_cfg.get('requests_per_minute', 50)
+        self.min_delay = 60 / self.rate_limit_per_min
+        self.last_call = 0
+
+        # Initialize exchanges (same as before)...
         self._init_exchanges()
-        
-        # Cache settings
-        self.cache_duration = self.config['data']['cache_duration_hours'] * 3600
-        
-    def _load_config(self, config_path):
-        """Load configuration from YAML file"""
-        try:
-            with open(config_path, 'r') as f:
-                return yaml.safe_load(f)
-        except Exception as e:
-            print(f"Config loading error: {e}")
-            # Return default config
-            return {
-                'data': {'cache_duration_hours': 24, 'max_pages_coingecko': 6},
-                'apis': {'coingecko': {'requests_per_minute': 50}}
-            }
-    
-    def _ensure_cache_dir(self):
-        """Create cache directory if it doesn't exist"""
-        if not os.path.exists(self.cache_dir):
-            os.makedirs(self.cache_dir)
-    
+
+    def _load_config(self, path):
+        with open(path) as f:
+            return yaml.safe_load(f)
+
     def _init_exchanges(self):
-        """Initialize exchange connections"""
         self.exchanges = {}
-        
         try:
-            # BingX (primary)
-            if 'bingx' in self.config['apis']:
-                self.exchanges['bingx'] = ccxt.bingx({
-                    'apiKey': os.getenv('BINGX_API_KEY', ''),
-                    'secret': os.getenv('BINGX_API_SECRET', ''),
-                    'sandbox': False,
-                    'enableRateLimit': True,
-                })
-            
-            # Binance (fallback)  
-            self.exchanges['binance'] = ccxt.binance({
-                'enableRateLimit': True,
-            })
-            
-            # Bybit (fallback)
-            self.exchanges['bybit'] = ccxt.bybit({
-                'enableRateLimit': True,
-            })
-            
-        except Exception as e:
-            print(f"Exchange initialization warning: {e}")
-    
-    def _rate_limit_coingecko(self):
-        """Enforce CoinGecko rate limiting"""
-        now = time.time()
-        elapsed = now - self.last_coingecko_call
-        
-        if elapsed < self.coingecko_delay:
-            sleep_time = self.coingecko_delay - elapsed
-            time.sleep(sleep_time)
-        
-        self.last_coingecko_call = time.time()
-    
-    def fetch_comprehensive_market_data(self, force_refresh=False):
-        """
-        Fetch comprehensive market data from CoinGecko (6 pages = 1,500 coins)
-        Uses daily caching to optimize API usage
-        
-        Args:
-            force_refresh: Force fresh data fetch ignoring cache
-            
-        Returns:
-            list: Market data for all coins
-        """
-        
+            self.exchanges['bingx'] = ccxt.bingx({'enableRateLimit': True})
+        except: pass
+        for ex in ['binance', 'bybit']:
+            try:
+                self.exchanges[ex] = getattr(ccxt, ex)({'enableRateLimit': True})
+            except: pass
+
+    def _rate_limit(self):
+        elapsed = time.time() - self.last_call
+        if elapsed < self.min_delay:
+            time.sleep(self.min_delay - elapsed)
+        self.last_call = time.time()
+
+    def fetch_comprehensive_market_data(self):
         cache_file = os.path.join(self.cache_dir, 'daily_market_data.json')
-        
-        # Check cache validity
-        if not force_refresh and os.path.exists(cache_file):
-            cache_age = time.time() - os.path.getmtime(cache_file)
-            if cache_age < self.cache_duration:
-                print("Loading market data from cache...")
-                try:
-                    with open(cache_file, 'r') as f:
-                        return json.load(f)
-                except Exception as e:
-                    print(f"Cache loading error: {e}")
-        
-        print("Fetching fresh market data from CoinGecko...")
+        max_pages = self.config['data']['max_pages_coingecko']
         all_coins = []
-        
-        max_pages = self.config['data'].get('max_pages_coingecko', 6)
-        
-        try:
-            for page in range(1, max_pages + 1):
-                print(f"Fetching page {page}/{max_pages}...")
-                
-                # Rate limiting
-                self._rate_limit_coingecko()
-                
-                # Build URL
-                url = f"{self.coingecko_base}/coins/markets"
-                params = {
-                    'vs_currency': 'usd',
-                    'order': 'market_cap_desc',
-                    'per_page': 250,
-                    'page': page,
-                    'sparkline': 'false'
-                }
-                
-                if self.coingecko_key:
-                    params['x-cg-demo-api-key'] = self.coingecko_key
-                
-                # Make request
-                response = requests.get(url, params=params, timeout=30)
-                response.raise_for_status()
-                
-                page_data = response.json()
-                all_coins.extend(page_data)
-                
-                print(f"  -> Fetched {len(page_data)} coins")
-                
-                # Small delay between pages
-                time.sleep(2)
-            
-            # Cache the results
-            with open(cache_file, 'w') as f:
-                json.dump(all_coins, f)
-            
-            print(f"Successfully fetched {len(all_coins)} coins from CoinGecko")
-            return all_coins
-            
-        except Exception as e:
-            print(f"CoinGecko fetch error: {str(e)}")
-            
-            # Try to return cached data as fallback
-            if os.path.exists(cache_file):
-                print("Returning cached data as fallback...")
+
+        for page in range(1, max_pages+1):
+            retries = 3
+            while retries:
                 try:
-                    with open(cache_file, 'r') as f:
-                        return json.load(f)
-                except:
-                    pass
-            
-            return []
+                    self._rate_limit()
+                    params = {
+                        'vs_currency': 'usd',
+                        'order': 'market_cap_desc',
+                        'per_page': 250,
+                        'page': page,
+                        'sparkline': 'false'
+                    }
+                    if self.coingecko_key:
+                        params['x-cg-demo-api-key'] = self.coingecko_key
+                    resp = requests.get(f"{self.coingecko_base}/coins/markets", params=params, timeout=30)
+                    resp.raise_for_status()
+                    page_data = resp.json()
+                    all_coins.extend(page_data)
+                    break
+                except requests.exceptions.HTTPError as e:
+                    if resp.status_code == 429:
+                        wait = 60  # wait a minute then retry
+                        print(f"Rate limit hit on page {page}, waiting {wait}s...")
+                        time.sleep(wait)
+                        retries -= 1
+                    else:
+                        print(f"Unexpected HTTP error on page {page}: {e}")
+                        retries = 0
+                except Exception as e:
+                    print(f"Error fetching page {page}: {e}")
+                    retries = 0
+
+        if not all_coins and os.path.exists(cache_file):
+            print("No new data; loading cached market data")
+            return json.load(open(cache_file))
+
+        # Cache results (even partial)
+        with open(cache_file, 'w') as f:
+            json.dump(all_coins, f)
+
+        return all_coins
+
     
     def fetch_ohlcv_data(self, symbol, timeframe='1h', limit=100, exchange='bingx'):
         """
