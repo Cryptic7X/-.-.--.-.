@@ -60,7 +60,7 @@ class MarketFilter:
                 }
             }
     
-    def _load_blocked_coins(self, blocked_file='config/blocked_coins.txt'):
+    def _load_blocked_coins(self, blocked_file='../config/blocked_coins.txt'):
         """
         Load blocked coins from text file
         
