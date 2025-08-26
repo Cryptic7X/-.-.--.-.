@@ -47,12 +47,23 @@ jobs:
       working-directory: ./src
       run: python main.py signal_detection
     
-    - name: Upload updated cache
-      uses: actions/upload-artifact@v4
+    - name: Create cache directories  
+      run: mkdir -p src/cache logs
+    
+    - name: Download cache artifacts
+      uses: actions/download-artifact@v3
       with:
         name: market-data-cache
-        path: cache/
+        path: src/cache/
+      continue-on-error: true
+    
+    - name: Upload updated cache
+      uses: actions/upload-artifact@v3
+      with:
+        name: market-data-cache
+        path: src/cache/
         retention-days: 1
+
     
     - name: Upload logs
       if: always()
