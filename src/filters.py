@@ -23,7 +23,7 @@ class MarketFilter:
     Market-based cryptocurrency filtering system
     """
     
-    def __init__(self, config_path='config/config.yaml'):
+    def __init__(self, config_path='../config/config.yaml'):
         """
         Initialize MarketFilter with configuration
         
