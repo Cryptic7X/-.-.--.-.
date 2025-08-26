@@ -26,7 +26,7 @@ class AlertDeduplicator:
     Prevents spam alerts by tracking recent signals and enforcing cooldown periods.
     """
     
-    def __init__(self, config_path='config/config.yaml'):
+    def __init__(self, config_path='../config/config.yaml'):
         """
         Initialize alert deduplicator
         
