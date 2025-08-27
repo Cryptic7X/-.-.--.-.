@@ -1,61 +1,25 @@
-name: Daily Market Data Collection
-
-# Run daily at 6:00 AM IST (00:30 UTC)
+name: Daily Market Scan
 on:
   schedule:
-    - cron: '30 0 * * *'
-  
-  # Allow manual trigger
-  workflow_dispatch:
-
+    - cron: '30 0 * * *'  # 06:00 IST = 00:30 UTC
+  workflow_dispatch:  # Allow manual trigger
 jobs:
-  daily-scan:
+  scan:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-    
-    - name: Create cache directory
-      run: mkdir -p cache
-    
-    - name: Run daily market scan
-      env:
-        COINGECKO_API_KEY: ${{ secrets.COINGECKO_API_KEY }}
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        TELEGRAM_STANDARD_CHAT_ID: ${{ secrets.TELEGRAM_STANDARD_CHAT_ID }}
-        TELEGRAM_HIGHRISK_CHAT_ID: ${{ secrets.TELEGRAM_HIGHRISK_CHAT_ID }}
-      working-directory: ./src
-      run: python main.py daily_scan
+      - uses: actions/checkout@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Create cache directory
+        run: mkdir -p cache
+      - name: Run daily scan
+        run: python src/data_fetcher.py --daily-scan
+        env:
+          PYTHONPATH: ${{ github.workspace }}
 
-    
-    - name: Create cache directory
-      run: mkdir -p src/cache
-      
-    - name: Upload cache artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: market-data-cache
-        path: src/cache/
-        retention-days: 1
-
-    
-    - name: Send status notification
-      if: failure()
-      env:
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        TELEGRAM_STANDARD_CHAT_ID: ${{ secrets.TELEGRAM_STANDARD_CHAT_ID }}
-      run: |
-        curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-        -d chat_id="${TELEGRAM_STANDARD_CHAT_ID}" \
-        -d text="❌ Daily market scan failed! Check GitHub Actions logs."
