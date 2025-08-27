@@ -1,84 +1,31 @@
-name: Signal Detection and Alerts
-
-# Run every 10 minutes
+name: Signal Detection
 on:
   schedule:
-    - cron: '*/10 * * * *'
-  
-  # Allow manual trigger
-  workflow_dispatch:
-
+    - cron: '*/10 * * * *'  # Every 10 minutes
+  workflow_dispatch:        # Manual trigger
 jobs:
-  signal-detection:
+  detect:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-    
-    - name: Create cache directory
-      run: mkdir -p cache logs
-    
-    - name: Download cache artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: market-data-cache
-        path: cache/
-      continue-on-error: true
-    
-    - name: Run signal detection
-      env:
-        COINGECKO_API_KEY: ${{ secrets.COINGECKO_API_KEY }}
-        BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
-        BINGX_API_SECRET: ${{ secrets.BINGX_API_SECRET }}
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        TELEGRAM_STANDARD_CHAT_ID: ${{ secrets.TELEGRAM_STANDARD_CHAT_ID }}
-        TELEGRAM_HIGHRISK_CHAT_ID: ${{ secrets.TELEGRAM_HIGHRISK_CHAT_ID }}
-      working-directory: ./src
-      run: python main.py signal_detection
-    
-    - name: Create cache directories  
-      run: mkdir -p src/cache logs
-    
-    - name: Download cache artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: market-data-cache
-        path: src/cache/
-      continue-on-error: true
-    
-    - name: Upload updated cache
-      uses: actions/upload-artifact@v4
-      with:
-        name: market-data-cache
-        path: src/cache/
-        retention-days: 1
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Run signal detection
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          STANDARD_CHAT_ID: ${{ secrets.STANDARD_CHAT_ID }}
+          HIGH_RISK_CHAT_ID: ${{ secrets.HIGH_RISK_CHAT_ID }}
+          BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
+          BINGX_SECRET_KEY: ${{ secrets.BINGX_SECRET_KEY }}
+        run: python src/main.py
 
-    
-    - name: Upload logs
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: signal-logs-${{ github.run_number }}
-        path: logs/
-        retention-days: 7
-    
-    - name: Send error notification
-      if: failure()
-      env:
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        TELEGRAM_STANDARD_CHAT_ID: ${{ secrets.TELEGRAM_STANDARD_CHAT_ID }}
-      run: |
-        curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-        -d chat_id="${TELEGRAM_STANDARD_CHAT_ID}" \
-        -d text="⚠️ Signal detection cycle failed at $(date)! Check GitHub Actions logs."
