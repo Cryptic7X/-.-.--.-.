@@ -1,61 +1,24 @@
-name: Daily Market Scan
+name: Signal Detection
 on:
   schedule:
-    - cron: '30 0 * * *'  # 06:00 IST = 00:30 UTC
-  workflow_dispatch:      # Manual trigger
-
-permissions:
-  contents: write         # Allow writing to repository
-  actions: read           # Allow reading actions
-
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
 jobs:
-  scan:
+  detect:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-      
+      - uses: actions/checkout@v4
       - name: Set up Python 3.11
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      
-      - name: Create cache directory
-        run: mkdir -p src/cache
-      
-      - name: Upload cache artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: market-data-cache
-          path: src/cache/
-          retention-days: 1
-
-      
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential
-      
-      - name: Install Python dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      
-      - name: Run daily market scan
+      - name: Run signal detection
         env:
-          COINGECKO_API_KEY: ${{ secrets.COINGECKO_API_KEY }}
-        run: python src/data_fetcher.py --daily-scan
-      
-      - name: Commit cached data
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add cache/
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "Update daily market data cache [skip ci]"
-            git push
-          fi
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          STANDARD_CHAT_ID: ${{ secrets.STANDARD_CHAT_ID }}
+          HIGH_RISK_CHAT_ID: ${{ secrets.HIGH_RISK_CHAT_ID }}
+        run: python src/main.py
