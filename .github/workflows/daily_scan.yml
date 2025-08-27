@@ -23,7 +23,15 @@ jobs:
           python-version: '3.11'
       
       - name: Create cache directory
-        run: mkdir -p cache
+        run: mkdir -p src/cache
+      
+      - name: Upload cache artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: market-data-cache
+          path: src/cache/
+          retention-days: 1
+
       
       - name: Install system dependencies
         run: |
