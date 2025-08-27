@@ -53,41 +53,31 @@ def load_cached_coins():
     return data.get('standard', []), data.get('high_risk', [])
 
 def initialize_exchanges():
-    """Initialize cryptocurrency exchanges with BingX priority"""
+    """Initialize exchanges - BingX ONLY (others are geo-blocked)"""
     exchanges = []
     
-    # BingX (Primary)
+    # BingX (Primary - works in India)
     try:
         bingx = ccxt.bingx({
             'apiKey': os.getenv('BINGX_API_KEY', ''),
             'secret': os.getenv('BINGX_SECRET_KEY', ''),
             'sandbox': False,
-            'rateLimit': 100,  # 100ms between requests
+            'rateLimit': 100,
             'enableRateLimit': True,
         })
         exchanges.append(('BingX', bingx))
     except Exception as e:
         print(f"⚠️ BingX initialization failed: {e}")
     
-    # Binance (Fallback)
+    # Add other India-friendly exchanges
     try:
-        binance = ccxt.binance({
+        kucoin = ccxt.kucoin({
             'rateLimit': 1200,
             'enableRateLimit': True,
         })
-        exchanges.append(('Binance', binance))
+        exchanges.append(('KuCoin', kucoin))
     except Exception as e:
-        print(f"⚠️ Binance initialization failed: {e}")
-    
-    # Bybit (Second Fallback)
-    try:
-        bybit = ccxt.bybit({
-            'rateLimit': 1200,
-            'enableRateLimit': True,
-        })
-        exchanges.append(('Bybit', bybit))
-    except Exception as e:
-        print(f"⚠️ Bybit initialization failed: {e}")
+        print(f"⚠️ KuCoin initialization failed: {e}")
     
     return exchanges
 
@@ -122,34 +112,32 @@ def fetch_price_data(symbol, exchanges):
     return None
 
 def process_coin_signals(coin_data, channel_type, deduplicator, exchanges, config):
-    """Process a single coin for CipherB + StochRSI signals"""
+    """Process coin signals - FIXED function calls"""
     symbol = coin_data.get('symbol', '').upper()
     
     try:
-        # Fetch price data
         price_df = fetch_price_data(symbol, exchanges)
         if price_df is None or price_df.empty:
             return
         
-        # Convert to Heikin-Ashi (Your indicator works better with HA)
         ha_data = heikin_ashi(price_df)
-        
-        # Calculate CipherB signals (Your validated private indicator)
         signals = detect_cipherb_signals(ha_data, config['cipherb'])
         if signals.empty:
             return
         
-        # Calculate Stochastic RSI for confirmation
+        # FIXED: Only pass required parameters
         stoch_rsi = calculate_stoch_rsi(
-            price_df['Close'], 
-            **config['stoch_rsi']
+            price_df['Close'],
+            rsi_period=config['stoch_rsi']['rsi_period'],
+            stoch_period=config['stoch_rsi']['stoch_period'], 
+            k_smooth=config['stoch_rsi']['k_smooth'],
+            d_smooth=config['stoch_rsi']['d_smooth']
         )
         
-        # Get latest signal data
         latest_signals = signals.iloc[-1]
         latest_stoch_rsi = stoch_rsi.iloc[-1] if not stoch_rsi.empty else 50
         
-        # Check for BUY signals
+        # FIXED: Pass threshold separately
         if latest_signals['buySignal']:
             if check_stoch_rsi_confirmation(stoch_rsi, 'buy', config['stoch_rsi']['oversold_threshold']):
                 if deduplicator.is_alert_allowed(symbol, 'BUY'):
@@ -159,7 +147,6 @@ def process_coin_signals(coin_data, channel_type, deduplicator, exchanges, confi
                         latest_signals['wt1'], latest_signals['wt2'], latest_stoch_rsi
                     )
         
-        # Check for SELL signals  
         if latest_signals['sellSignal']:
             if check_stoch_rsi_confirmation(stoch_rsi, 'sell', config['stoch_rsi']['overbought_threshold']):
                 if deduplicator.is_alert_allowed(symbol, 'SELL'):
