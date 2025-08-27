@@ -2,24 +2,37 @@ name: Daily Market Scan
 on:
   schedule:
     - cron: '30 0 * * *'  # 06:00 IST = 00:30 UTC
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:      # Manual trigger
 jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
         with:
           python-version: '3.11'
+      
+      - name: Create cache directory
+        run: mkdir -p cache
+      
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Create cache directory
-        run: mkdir -p cache
-      - name: Run daily scan
-        run: python src/data_fetcher.py --daily-scan
+      
+      - name: Run daily market scan
         env:
-          PYTHONPATH: ${{ github.workspace }}
+          COINGECKO_API_KEY: ${{ secrets.COINGECKO_API_KEY }}
+        run: python src/data_fetcher.py --daily-scan
+      
+      - name: Commit cached data
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add cache/
+          git commit -m "Update daily market data cache" || exit 0
+          git push
 
