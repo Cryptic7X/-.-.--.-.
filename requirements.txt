@@ -4,5 +4,4 @@ requests==2.31.0
 ccxt==4.1.68
 python-telegram-bot==20.7
 PyYAML==6.0.1
-redis==5.0.1
-TA-Lib==0.4.28
+
