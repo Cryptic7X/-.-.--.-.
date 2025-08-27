@@ -49,10 +49,9 @@ def stochastic(high, low, close, k_period=14):
     
     return pd.Series(k_percent, index=close.index)
 
-def calculate_stoch_rsi(close_data, rsi_period=14, stoch_period=14, k_smooth=3, d_smooth=3):
+def calculate_stoch_rsi(close_data, rsi_period=14, stoch_period=14, k_smooth=3, d_smooth=3, **kwargs):
     """
-    Calculate Stochastic RSI with standard parameters (14,14,3,3)
-    Used for confirming CipherB signals
+    Calculate Stochastic RSI - FIXED to accept any extra parameters
     """
     min_length = max(rsi_period, stoch_period) + k_smooth + d_smooth
     if len(close_data) < min_length:
@@ -69,13 +68,9 @@ def calculate_stoch_rsi(close_data, rsi_period=14, stoch_period=14, k_smooth=3, 
     
     return k_line
 
-def check_stoch_rsi_confirmation(stoch_rsi_values, signal_type, threshold):
+def check_stoch_rsi_confirmation(stoch_rsi_values, signal_type, threshold=None):
     """
-    Check Stochastic RSI confirmation for CipherB signals
-    
-    Your confirmation logic:
-    - BUY: CipherB buy signal + StochRSI ≤ 20 (oversold)
-    - SELL: CipherB sell signal + StochRSI ≥ 80 (overbought)
+    Check Stochastic RSI confirmation - FIXED with default thresholds
     """
     if stoch_rsi_values.empty or pd.isna(stoch_rsi_values.iloc[-1]):
         return False
@@ -83,8 +78,10 @@ def check_stoch_rsi_confirmation(stoch_rsi_values, signal_type, threshold):
     current_value = stoch_rsi_values.iloc[-1]
     
     if signal_type.lower() == 'buy':
-        return current_value <= threshold  # Default: 20
+        threshold = threshold or 20  # Default oversold threshold
+        return current_value <= threshold
     elif signal_type.lower() == 'sell':
-        return current_value >= threshold  # Default: 80
+        threshold = threshold or 80  # Default overbought threshold
+        return current_value >= threshold
     
     return False
