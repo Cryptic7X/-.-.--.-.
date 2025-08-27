@@ -200,6 +200,10 @@ def main():
         if i > 0:  # Rate limiting between requests
             time.sleep(0.5)
         process_coin_signals(coin, 'high_risk', deduplicator, exchanges, config)
+
+    # If no signals triggered
+    if not any_signal:
+        print("ℹ️ No signals detected in this run.")
     
     # Cleanup expired cache entries
     deduplicator.cleanup_expired_entries()
