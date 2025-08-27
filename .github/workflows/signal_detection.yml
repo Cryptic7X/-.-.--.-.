@@ -23,14 +23,14 @@ jobs:
         run: mkdir -p src/cache logs
       
       - name: Download cache artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: market-data-cache
           path: src/cache/
         continue-on-error: true
       
       - name: Upload updated cache
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: market-data-cache
           path: src/cache/
