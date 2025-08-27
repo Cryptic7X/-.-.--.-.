@@ -1,10 +1,11 @@
 # API Configuration
 coingecko:
   base_url: "https://api.coingecko.com/api/v3"
-  rate_limit: 1.2  # seconds between requests
+  rate_limit: 2.0
 
 bingx:
   base_url: "https://open-api.bingx.com"
+  rate_limit: 0.1  # 100 requests per 10 seconds = 0.1s between requests
   
 # Market Filters
 filters:
@@ -16,11 +17,29 @@ filters:
     max_market_cap: 500000000   # 500M USD
     min_volume_24h: 10000000    # 10M USD
 
+# CipherB Indicator Settings (Your validated parameters)
+cipherb:
+  wt_channel_len: 9
+  wt_average_len: 12
+  wt_ma_len: 3
+  oversold_threshold: -60
+  overbought_threshold: 60
+
+# Stochastic RSI Settings (Standard parameters)
+stoch_rsi:
+  rsi_period: 14
+  stoch_period: 14
+  k_smooth: 3
+  d_smooth: 3
+  oversold_threshold: 20
+  overbought_threshold: 80
+
 # Alert Configuration
 alerts:
   cooldown_hours: 2
   timezone_offset: "+05:30"
+  max_coins_per_run: 50  # Process top 50 coins per category
 
 # Pagination
-scan_pages: 6
+scan_pages: 5
 coins_per_page: 250
