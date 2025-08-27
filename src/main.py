@@ -16,8 +16,10 @@ This is the entry point for both manual execution and automated GitHub Actions.
 import json
 import os
 import sys
+import time
 import ccxt
 import pandas as pd
+import yaml
 from datetime import datetime, timedelta
 
 # Add current directory to Python path
@@ -30,6 +32,12 @@ from indicators.cipherb_fixed import detect_cipherb_signals
 from indicators.stoch_rsi import calculate_stoch_rsi, check_stoch_rsi_confirmation
 from alerts.deduplication import AlertDeduplicator
 from alerts.telegram_handler import send_telegram_alert
+
+def load_config():
+    """Load configuration"""
+    config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml')
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
 
 def load_cached_coins():
     """Load cached coin data from daily scan"""
@@ -44,68 +52,118 @@ def load_cached_coins():
     
     return data.get('standard', []), data.get('high_risk', [])
 
-def fetch_price_data(symbol):
-    """Fetch 1-hour OHLCV data using CCXT"""
+def initialize_exchanges():
+    """Initialize cryptocurrency exchanges with BingX priority"""
+    exchanges = []
+    
+    # BingX (Primary)
     try:
-        exchanges_to_try = [
-            ccxt.binance({'rateLimit': 1200}),
-            ccxt.bybit({'rateLimit': 1200})
-        ]
-        
-        for exchange in exchanges_to_try:
-            try:
-                ohlcv = exchange.fetch_ohlcv(f"{symbol}/USDT", '1h', limit=50)
-                
-                if len(ohlcv) < 20:
-                    continue
-                
-                df = pd.DataFrame(ohlcv, columns=['timestamp', 'Open', 'High', 'Low', 'Close', 'Volume'])
-                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-                df.set_index('timestamp', inplace=True)
-                
-                # Adjust timezone to IST (UTC+5:30)
-                df.index = df.index + pd.Timedelta(hours=5, minutes=30)
-                
-                return df
-                
-            except Exception:
-                continue
-        
-        return None
-        
+        bingx = ccxt.bingx({
+            'apiKey': os.getenv('BINGX_API_KEY', ''),
+            'secret': os.getenv('BINGX_SECRET_KEY', ''),
+            'sandbox': False,
+            'rateLimit': 100,  # 100ms between requests
+            'enableRateLimit': True,
+        })
+        exchanges.append(('BingX', bingx))
     except Exception as e:
-        print(f"❌ Error fetching data for {symbol}: {e}")
-        return None
+        print(f"⚠️ BingX initialization failed: {e}")
+    
+    # Binance (Fallback)
+    try:
+        binance = ccxt.binance({
+            'rateLimit': 1200,
+            'enableRateLimit': True,
+        })
+        exchanges.append(('Binance', binance))
+    except Exception as e:
+        print(f"⚠️ Binance initialization failed: {e}")
+    
+    # Bybit (Second Fallback)
+    try:
+        bybit = ccxt.bybit({
+            'rateLimit': 1200,
+            'enableRateLimit': True,
+        })
+        exchanges.append(('Bybit', bybit))
+    except Exception as e:
+        print(f"⚠️ Bybit initialization failed: {e}")
+    
+    return exchanges
 
-def process_coin_signals(coin_data, channel_type, deduplicator):
-    """Process a single coin for signals"""
+def fetch_price_data(symbol, exchanges):
+    """Fetch 1-hour OHLCV data with BingX priority and fallbacks"""
+    for exchange_name, exchange in exchanges:
+        try:
+            print(f"📊 Fetching {symbol} data from {exchange_name}...")
+            
+            # Fetch last 60 1-hour candles for better indicator accuracy
+            ohlcv = exchange.fetch_ohlcv(f"{symbol}/USDT", '1h', limit=60)
+            
+            if len(ohlcv) < 30:  # Need sufficient data
+                continue
+            
+            # Convert to DataFrame
+            df = pd.DataFrame(ohlcv, columns=['timestamp', 'Open', 'High', 'Low', 'Close', 'Volume'])
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            df.set_index('timestamp', inplace=True)
+            
+            # Adjust timezone to IST (UTC+5:30) - Your TradingView timezone
+            df.index = df.index + pd.Timedelta(hours=5, minutes=30)
+            
+            print(f"✅ Successfully fetched {len(df)} candles for {symbol} from {exchange_name}")
+            return df
+            
+        except Exception as e:
+            print(f"❌ {exchange_name} failed for {symbol}: {e}")
+            continue
+    
+    print(f"❌ All exchanges failed for {symbol}")
+    return None
+
+def process_coin_signals(coin_data, channel_type, deduplicator, exchanges, config):
+    """Process a single coin for CipherB + StochRSI signals"""
     symbol = coin_data.get('symbol', '').upper()
     
     try:
-        price_df = fetch_price_data(symbol)
+        # Fetch price data
+        price_df = fetch_price_data(symbol, exchanges)
         if price_df is None or price_df.empty:
             return
         
+        # Convert to Heikin-Ashi (Your indicator works better with HA)
         ha_data = heikin_ashi(price_df)
-        signals = detect_cipherb_signals(ha_data)
+        
+        # Calculate CipherB signals (Your validated private indicator)
+        signals = detect_cipherb_signals(ha_data, config['cipherb'])
         if signals.empty:
             return
         
-        stoch_rsi = calculate_stoch_rsi(price_df['Close'])
+        # Calculate Stochastic RSI for confirmation
+        stoch_rsi = calculate_stoch_rsi(
+            price_df['Close'], 
+            **config['stoch_rsi']
+        )
+        
+        # Get latest signal data
         latest_signals = signals.iloc[-1]
         latest_stoch_rsi = stoch_rsi.iloc[-1] if not stoch_rsi.empty else 50
         
+        # Check for BUY signals
         if latest_signals['buySignal']:
-            if check_stoch_rsi_confirmation(stoch_rsi, 'buy'):
+            if check_stoch_rsi_confirmation(stoch_rsi, 'buy', config['stoch_rsi']['oversold_threshold']):
                 if deduplicator.is_alert_allowed(symbol, 'BUY'):
+                    print(f"🟢 BUY SIGNAL: {symbol}")
                     send_telegram_alert(
                         coin_data, 'BUY', channel_type,
                         latest_signals['wt1'], latest_signals['wt2'], latest_stoch_rsi
                     )
         
+        # Check for SELL signals  
         if latest_signals['sellSignal']:
-            if check_stoch_rsi_confirmation(stoch_rsi, 'sell'):
+            if check_stoch_rsi_confirmation(stoch_rsi, 'sell', config['stoch_rsi']['overbought_threshold']):
                 if deduplicator.is_alert_allowed(symbol, 'SELL'):
+                    print(f"🔴 SELL SIGNAL: {symbol}")
                     send_telegram_alert(
                         coin_data, 'SELL', channel_type,
                         latest_signals['wt1'], latest_signals['wt2'], latest_stoch_rsi
@@ -116,26 +174,51 @@ def process_coin_signals(coin_data, channel_type, deduplicator):
 
 def main():
     """Main signal detection process"""
-    print(f"🚀 Starting signal detection at {datetime.now().strftime('%Y-%m-%d %H:%M:%S IST')}")
+    print(f"🚀 Starting CipherB signal detection at {datetime.now().strftime('%Y-%m-%d %H:%M:%S IST')}")
     
+    # Load configuration
+    config = load_config()
+    
+    # Load cached coin data
     standard_coins, high_risk_coins = load_cached_coins()
     
     if not standard_coins and not high_risk_coins:
         print("❌ No coin data available")
         return
     
+    # Initialize exchanges
+    exchanges = initialize_exchanges()
+    if not exchanges:
+        print("❌ No exchanges available")
+        return
+    
+    print(f"📊 Exchanges: {[name for name, _ in exchanges]}")
     print(f"📊 Processing {len(standard_coins)} standard and {len(high_risk_coins)} high-risk coins")
     
-    deduplicator = AlertDeduplicator(cooldown_hours=2)
+    # Initialize deduplicator with 2-hour cooldown
+    deduplicator = AlertDeduplicator(cooldown_hours=config['alerts']['cooldown_hours'])
     
-    for coin in standard_coins[:5]:  # Process first 5 coins only for testing
-        process_coin_signals(coin, 'standard', deduplicator)
+    max_coins = config['alerts']['max_coins_per_run']
     
-    for coin in high_risk_coins[:5]:  # Process first 5 coins only for testing
-        process_coin_signals(coin, 'high_risk', deduplicator)
+    # Process standard coins (high priority)
+    print("🔍 Scanning STANDARD coins...")
+    for i, coin in enumerate(standard_coins[:max_coins]):
+        if i > 0:  # Rate limiting between requests
+            time.sleep(0.5)
+        process_coin_signals(coin, 'standard', deduplicator, exchanges, config)
     
+    # Process high-risk coins
+    print("🔍 Scanning HIGH-RISK coins...")  
+    for i, coin in enumerate(high_risk_coins[:max_coins]):
+        if i > 0:  # Rate limiting between requests
+            time.sleep(0.5)
+        process_coin_signals(coin, 'high_risk', deduplicator, exchanges, config)
+    
+    # Cleanup expired cache entries
     deduplicator.cleanup_expired_entries()
-    print("✅ Signal detection completed")
+    
+    print("✅ CipherB signal detection completed")
+    print(f"⏰ Next scan: {(datetime.now() + timedelta(minutes=10)).strftime('%H:%M:%S IST')}")
 
 if __name__ == '__main__':
     main()
