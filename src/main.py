@@ -112,52 +112,50 @@ def fetch_price_data(symbol, exchanges):
     return None
 
 def process_coin_signals(coin_data, channel_type, deduplicator, exchanges, config):
-    """Process coin signals - FIXED function calls"""
+    """Process a single coin for signals. Returns True if an alert was sent."""
     symbol = coin_data.get('symbol', '').upper()
-    
+    alert_sent = False
+
     try:
         price_df = fetch_price_data(symbol, exchanges)
         if price_df is None or price_df.empty:
-            return
-        
+            return False
+
         ha_data = heikin_ashi(price_df)
         signals = detect_cipherb_signals(ha_data, config['cipherb'])
         if signals.empty:
-            return
-        
-        # FIXED: Only pass required parameters
+            return False
+
         stoch_rsi = calculate_stoch_rsi(
             price_df['Close'],
             rsi_period=config['stoch_rsi']['rsi_period'],
-            stoch_period=config['stoch_rsi']['stoch_period'], 
+            stoch_period=config['stoch_rsi']['stoch_period'],
             k_smooth=config['stoch_rsi']['k_smooth'],
             d_smooth=config['stoch_rsi']['d_smooth']
         )
-        
-        latest_signals = signals.iloc[-1]
-        latest_stoch_rsi = stoch_rsi.iloc[-1] if not stoch_rsi.empty else 50
-        
-        # FIXED: Pass threshold separately
-        if latest_signals['buySignal']:
+
+        latest = signals.iloc[-1]
+        latest_stoch = stoch_rsi.iloc[-1] if not stoch_rsi.empty else 50
+
+        if latest['buySignal']:
             if check_stoch_rsi_confirmation(stoch_rsi, 'buy', config['stoch_rsi']['oversold_threshold']):
                 if deduplicator.is_alert_allowed(symbol, 'BUY'):
-                    print(f"🟢 BUY SIGNAL: {symbol}")
-                    send_telegram_alert(
-                        coin_data, 'BUY', channel_type,
-                        latest_signals['wt1'], latest_signals['wt2'], latest_stoch_rsi
-                    )
-        
-        if latest_signals['sellSignal']:
+                    send_telegram_alert(coin_data, 'BUY', channel_type,
+                                        latest['wt1'], latest['wt2'], latest_stoch)
+                    alert_sent = True
+
+        if latest['sellSignal']:
             if check_stoch_rsi_confirmation(stoch_rsi, 'sell', config['stoch_rsi']['overbought_threshold']):
                 if deduplicator.is_alert_allowed(symbol, 'SELL'):
-                    print(f"🔴 SELL SIGNAL: {symbol}")
-                    send_telegram_alert(
-                        coin_data, 'SELL', channel_type,
-                        latest_signals['wt1'], latest_signals['wt2'], latest_stoch_rsi
-                    )
-    
+                    send_telegram_alert(coin_data, 'SELL', channel_type,
+                                        latest['wt1'], latest['wt2'], latest_stoch)
+                    alert_sent = True
+
     except Exception as e:
         print(f"❌ Error processing {symbol}: {e}")
+
+    return alert_sent
+
 
 def main():
     """Main signal detection process"""
@@ -187,26 +185,23 @@ def main():
     
     max_coins = config['alerts']['max_coins_per_run']
     
-    # Process standard coins (high priority)
-    print("🔍 Scanning STANDARD coins...")
-    for i, coin in enumerate(standard_coins[:max_coins]):
-        if i > 0:  # Rate limiting between requests
-            time.sleep(0.5)
-        process_coin_signals(coin, 'standard', deduplicator, exchanges, config)
-    
-    # Process high-risk coins
-    print("🔍 Scanning HIGH-RISK coins...")  
-    for i, coin in enumerate(high_risk_coins[:max_coins]):
-        if i > 0:  # Rate limiting between requests
-            time.sleep(0.5)
-        process_coin_signals(coin, 'high_risk', deduplicator, exchanges, config)
+    any_alert = False
 
-    # If no signals triggered
-    if not any_signal:
+    print("🔍 Scanning STANDARD coins…")
+    for coin in standard_coins[:config['alerts']['max_coins_per_run']]:
+        if process_coin_signals(coin, 'standard', deduplicator, exchanges, config):
+            any_alert = True
+
+    print("🔍 Scanning HIGH-RISK coins…")
+    for coin in high_risk_coins[:config['alerts']['max_coins_per_run']]:
+        if process_coin_signals(coin, 'high_risk', deduplicator, exchanges, config):
+            any_alert = True
+
+    if not any_alert:
         print("ℹ️ No signals detected in this run.")
-    
-    # Cleanup expired cache entries
+
     deduplicator.cleanup_expired_entries()
+    print("✅ Signal detection completed")
     
     print("✅ CipherB signal detection completed")
     print(f"⏰ Next scan: {(datetime.now() + timedelta(minutes=10)).strftime('%H:%M:%S IST')}")
