@@ -21,25 +21,28 @@ from utils.symbol_validator import generate_tradingview_link
 
 def load_config():
     """Load configuration"""
-    with open('config/config.yaml', 'r') as f:
+    config_path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'config.yaml')
+    with open(config_path, 'r') as f:
         return yaml.safe_load(f)
 
 def send_telegram_alert(coin_data, signal_type, channel_type, wt1_val, wt2_val, stoch_rsi_val):
     """
-    Send enhanced Telegram alert with TradingView link and market data
+    Send enhanced Telegram alert with TradingView link, market data, and indicator values
+    Includes your CipherB values and StochRSI confirmation
     """
-    # Get credentials from environment variables
     bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
     
     if channel_type == 'standard':
         chat_id = os.getenv('STANDARD_CHAT_ID')
         channel_header = "💎 STANDARD"
+        channel_emoji = "🏆"
     else:
-        chat_id = os.getenv('HIGH_RISK_CHAT_ID')
+        chat_id = os.getenv('HIGH_RISK_CHAT_ID')  
         channel_header = "⚡ HIGH-RISK"
+        channel_emoji = "🎯"
     
     if not bot_token or not chat_id:
-        print(f"Warning: Missing Telegram credentials for {channel_type} channel")
+        print(f"⚠️ Missing Telegram credentials for {channel_type} channel")
         return False
     
     # Extract coin data
@@ -52,42 +55,56 @@ def send_telegram_alert(coin_data, signal_type, channel_type, wt1_val, wt2_val, 
     # Generate TradingView link
     tv_link = generate_tradingview_link(symbol)
     
-    # Format message
+    # Format message with your indicator data
     signal_emoji = "🟢" if signal_type.upper() == "BUY" else "🔴"
     
-    # Format numbers
-    price_formatted = f"${price:.6f}" if price < 1 else f"${price:.4f}"
+    # Format numbers for readability
+    if price < 0.01:
+        price_formatted = f"${price:.8f}"
+    elif price < 1:
+        price_formatted = f"${price:.6f}"
+    else:
+        price_formatted = f"${price:.4f}"
+    
     market_cap_m = market_cap / 1_000_000
     volume_m = volume / 1_000_000
     
-    # Stoch RSI confirmation
+    # StochRSI confirmation status
     if signal_type.upper() == "BUY":
-        stoch_status = "Oversold ✅" if stoch_rsi_val <= 20 else f"Neutral ({stoch_rsi_val:.0f})"
+        stoch_status = "Oversold ✅" if stoch_rsi_val <= 20 else f"Weak ({stoch_rsi_val:.0f})"
     else:
-        stoch_status = "Overbought ✅" if stoch_rsi_val >= 80 else f"Neutral ({stoch_rsi_val:.0f})"
+        stoch_status = "Overbought ✅" if stoch_rsi_val >= 80 else f"Weak ({stoch_rsi_val:.0f})"
     
+    # Enhanced message with all your trading data
     message = f"""{signal_emoji} *CipherB {signal_type.upper()} SIGNAL* {signal_emoji}
 
-{channel_header} | *{symbol}/USDT*
-💰 Price: {price_formatted}
-📈 24h Change: {change_24h:+.2f}%
-🏦 Market Cap: ${market_cap_m:,.0f}M
-📊 Volume: ${volume_m:,.0f}M
+{channel_emoji} {channel_header} | *{symbol}/USDT*
 
-*📊 Indicator Values:*
-🌊 WaveTrend: wt1={wt1_val:.1f}, wt2={wt2_val:.1f}
-⚡ Stoch RSI: {stoch_rsi_val:.0f} ({stoch_status})
+💰 *Price:* {price_formatted}
+📈 *24h Change:* {change_24h:+.2f}%
+🏦 *Market Cap:* ${market_cap_m:,.0f}M
+📊 *Volume:* ${volume_m:,.0f}M
 
-📈 [Open Chart on TradingView]({tv_link})
+*🔍 YOUR PRIVATE INDICATOR VALUES:*
+🌊 *CipherB WaveTrend:* 
+   • wt1: {wt1_val:.1f}
+   • wt2: {wt2_val:.1f}
+⚡ *Stoch RSI:* {stoch_rsi_val:.0f} ({stoch_status})
 
-⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S IST')}"""
+📈 *[Open 1H Chart →]({tv_link})*
 
-    # Send message
+🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S IST')}
+⏰ Cooldown: 2 hours
+
+─────────────────────
+🤖 *CipherB Automated Trading System*"""
+
+    # Send message to Telegram
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {
         'chat_id': chat_id,
         'text': message,
-        'parse_mode': 'Markdown',
+        'parse_mode': 'Markdown', 
         'disable_web_page_preview': False
     }
     
