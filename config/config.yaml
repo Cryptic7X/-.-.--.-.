@@ -38,7 +38,7 @@ stoch_rsi:
 alerts:
   cooldown_hours: 2
   timezone_offset: "+05:30"
-  max_coins_per_run: 50  # Process top 50 coins per category
+  # max_coins_per_run: 50  # Process top 50 coins per category
 
 # Pagination
 scan_pages: 5
