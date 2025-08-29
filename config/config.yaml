@@ -5,17 +5,12 @@ coingecko:
 
 bingx:
   base_url: "https://open-api.bingx.com"
-  rate_limit: 0.1  # 100 requests per 10 seconds = 0.1s between requests
+  rate_limit: 0.2  # Slower for reliability
   
-# Market Filters
+# Single Market Filter (175 coins)
 filters:
-  standard:
-    min_market_cap: 500000000   # 500M USD
-    min_volume_24h: 30000000    # 30M USD
-  high_risk:
-    min_market_cap: 10000000    # 10M USD
-    max_market_cap: 500000000   # 500M USD
-    min_volume_24h: 10000000    # 10M USD
+  min_market_cap: 100000000   # 100M USD
+  min_volume_24h: 30000000    # 30M USD
 
 # CipherB Indicator Settings (Your validated parameters)
 cipherb:
@@ -38,8 +33,10 @@ stoch_rsi:
 alerts:
   cooldown_hours: 2
   timezone_offset: "+05:30"
-  # max_coins_per_run: 50  # Process top 50 coins per category
+  max_coins_per_run: 175  # Process all coins
+  batch_size: 25  # Process in smaller batches
 
-# Pagination
+# Pagination (unchanged)
 scan_pages: 5
 coins_per_page: 250
+
