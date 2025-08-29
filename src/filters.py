@@ -39,19 +39,24 @@ def is_coin_blocked(symbol, blocked_coins):
     # Pattern matching for USD-related coins
     usd_patterns = ['USD', 'BUSD', 'TUSD', 'FDUSD']
     for pattern in usd_patterns:
-        if pattern in symbol and symbol != 'USDT':  # Allow USDT pairs
+        if pattern in symbol and symbol != 'USDT':
             return True
     
     return False
 
 def apply_filters(coins, config):
-    """Apply market cap and volume filters"""
+    """
+    Apply single market filter: 100M+ market cap & 30M+ volume
+    Returns single list of qualifying coins (~175 coins)
+    """
     blocked_coins = load_blocked_coins()
-    standard_coins = []
-    high_risk_coins = []
+    qualifying_coins = []
     
-    std_config = config['filters']['standard']
-    hr_config = config['filters']['high_risk']
+    min_market_cap = config['filters']['min_market_cap']
+    min_volume = config['filters']['min_volume_24h']
+    
+    blocked_count = 0
+    no_data_count = 0
     
     for coin in coins:
         symbol = coin.get('symbol', '').upper()
@@ -60,20 +65,22 @@ def apply_filters(coins, config):
         
         # Skip blocked coins
         if is_coin_blocked(symbol, blocked_coins):
+            blocked_count += 1
             continue
         
         # Skip coins with insufficient data
         if not market_cap or not volume_24h:
+            no_data_count += 1
             continue
         
-        # Apply standard filter
-        if (market_cap >= std_config['min_market_cap'] and 
-            volume_24h >= std_config['min_volume_24h']):
-            standard_coins.append(coin)
-        
-        # Apply high-risk filter
-        elif (hr_config['min_market_cap'] <= market_cap < hr_config['max_market_cap'] and
-              volume_24h >= hr_config['min_volume_24h']):
-            high_risk_coins.append(coin)
+        # Apply single filter criteria
+        if market_cap >= min_market_cap and volume_24h >= min_volume:
+            qualifying_coins.append(coin)
     
-    return standard_coins, high_risk_coins
+    print(f"Filter results:")
+    print(f"  - Qualifying coins: {len(qualifying_coins)}")
+    print(f"  - Blocked coins: {blocked_count}")
+    print(f"  - No data coins: {no_data_count}")
+    print(f"  - Total coins processed: {len(coins)}")
+    
+    return qualifying_coins
