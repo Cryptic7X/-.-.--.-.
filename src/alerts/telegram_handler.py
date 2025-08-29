@@ -15,17 +15,14 @@ Features:
 
 import os
 import requests
-import yaml
 from datetime import datetime
-from utils.symbol_validator import generate_tradingview_link, generate_backup_links
 
 def send_telegram_alert(coin_data, signal_type, wt1_val, wt2_val, stoch_rsi_val):
     """
-    Send CipherB alert to single Telegram channel
-    Simplified for single-channel system
+    Send CipherB alert - completely standalone version
     """
     bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
-    chat_id = os.getenv('TELEGRAM_CHAT_ID')  # Single channel
+    chat_id = os.getenv('TELEGRAM_CHAT_ID')
     
     if not bot_token or not chat_id:
         print(f"⚠️ Missing Telegram credentials")
@@ -38,11 +35,12 @@ def send_telegram_alert(coin_data, signal_type, wt1_val, wt2_val, stoch_rsi_val)
     market_cap = coin_data.get('market_cap', 0)
     volume = coin_data.get('total_volume', 0)
     
-    # Generate TradingView link
-    tv_link = generate_tradingview_link(symbol, '1h')
-    backup_links = generate_backup_links(symbol)
+    # Generate links directly
+    clean_symbol = symbol.replace('USDT', '').replace('USD', '')
+    tv_link = f"https://www.tradingview.com/chart/?symbol=BINANCE:{clean_symbol}USDT&interval=1h"
+    binance_link = f"https://www.binance.com/en/trade/{clean_symbol}_USDT"
     
-    # Format price display
+    # Format price
     if price < 0.01:
         price_formatted = f"${price:.8f}"
     elif price < 1:
@@ -63,7 +61,7 @@ def send_telegram_alert(coin_data, signal_type, wt1_val, wt2_val, stoch_rsi_val)
     else:
         stoch_status = "Overbought ✅" if stoch_rsi_val >= 80 else f"Neutral ({stoch_rsi_val:.0f})"
     
-    # Market cap category for display
+    # Market cap category
     if market_cap >= 1_000_000_000:
         cap_category = "💎 LARGE CAP"
     elif market_cap >= 500_000_000:
@@ -71,7 +69,7 @@ def send_telegram_alert(coin_data, signal_type, wt1_val, wt2_val, stoch_rsi_val)
     else:
         cap_category = "⚡ SMALL CAP"
     
-    # Enhanced message with all trading information
+    # Message
     message = f"""{signal_emoji} *CipherB {signal_type.upper()} SIGNAL* {signal_emoji}
 
 {cap_category} | *{symbol}/USDT*
@@ -81,23 +79,18 @@ def send_telegram_alert(coin_data, signal_type, wt1_val, wt2_val, stoch_rsi_val)
 🏦 *Market Cap:* ${market_cap_m:,.0f}M
 📊 *Volume:* ${volume_m:,.0f}M
 
-*🔍 YOUR PRIVATE INDICATOR VALUES:*
-🌊 *CipherB WaveTrend:*
-   • wt1: {wt1_val:.1f}
-   • wt2: {wt2_val:.1f}
+*🔍 INDICATOR VALUES:*
+🌊 *CipherB:* wt1={wt1_val:.1f}, wt2={wt2_val:.1f}
 ⚡ *Stoch RSI:* {stoch_rsi_val:.0f} ({stoch_status})
 
-*📊 ANALYSIS CHARTS:*
-📈 [TradingView 1H Chart]({tv_link})
-🌐 [Binance Web]({backup_links['binance_web']})
+*📊 CHARTS:*
+📈 [TradingView Chart]({tv_link})
+🌐 [Binance Web]({binance_link})
 
-🕐 *Time:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S IST')}
-⏰ *Cooldown:* 2 hours
+🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S IST')}
+⏰ Cooldown: 2 hours
 
-─────────────────────
-🤖 *CipherB Automated System*
-📊 *Market Filter:* 100M+ Cap, 30M+ Volume
-🎯 *Coverage:* 175 Quality Coins"""
+🤖 CipherB System | 175 Quality Coins"""
 
     # Send to Telegram
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
