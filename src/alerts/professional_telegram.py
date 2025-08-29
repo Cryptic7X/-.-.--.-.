@@ -57,7 +57,7 @@ def send_professional_alert(coin_data, signal_type, wt1_val, wt2_val, stoch_rsi_
     
     # Professional chart links
     clean_symbol = symbol.replace('USDT', '').replace('USD', '')
-    tv_4h_link = f"https://www.tradingview.com/chart/?symbol=BINANCE:{clean_symbol}USDT&interval=240"  # 4H = 240 minutes
+    tv_4h_link = f"https://www.tradingview.com/chart/?symbol={clean_symbol}USDT&interval=240"  # 4H = 240 minutes
     binance_link = f"https://www.binance.com/en/trade/{clean_symbol}_USDT"
     
     # Professional alert message
