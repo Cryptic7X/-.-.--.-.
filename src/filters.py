@@ -13,8 +13,13 @@ Creates two filtered lists:
 - High-Risk: Mid market cap, emerging opportunities
 """
 
+"""
+Professional Market Filter System
+Implements quality-based coin filtering for 4H analysis
+"""
+
 def load_blocked_coins():
-    """Load blocked coins from config file"""
+    """Load professionally curated blocked coins list"""
     blocked = set()
     
     try:
@@ -24,63 +29,114 @@ def load_blocked_coins():
                 if line and not line.startswith('#'):
                     blocked.add(line.upper())
     except FileNotFoundError:
-        print("Warning: blocked_coins.txt not found")
+        print("⚠️ Warning: blocked_coins.txt not found")
     
     return blocked
 
-def is_coin_blocked(symbol, blocked_coins):
-    """Check if coin should be blocked"""
+def is_professionally_blocked(symbol, blocked_coins):
+    """Professional coin blocking with pattern recognition"""
     symbol = symbol.upper()
     
-    # Direct match
+    # Direct exclusions
     if symbol in blocked_coins:
         return True
     
-    # Pattern matching for USD-related coins
-    usd_patterns = ['USD', 'BUSD', 'TUSD', 'FDUSD']
-    for pattern in usd_patterns:
+    # Stablecoin patterns
+    stable_patterns = ['USD', 'USDT', 'USDC', 'BUSD', 'TUSD', 'FDUSD', 'DAI']
+    for pattern in stable_patterns:
         if pattern in symbol and symbol != 'USDT':
             return True
     
+    # Wrapped token patterns
+    wrapped_patterns = ['WBTC', 'WETH', 'WBNB']
+    if symbol in wrapped_patterns:
+        return True
+    
     return False
 
-def apply_filters(coins, config):
+def validate_coin_data_quality(coin):
+    """Validate coin data quality for professional analysis"""
+    required_fields = ['symbol', 'market_cap', 'total_volume', 'current_price']
+    
+    for field in required_fields:
+        if not coin.get(field):
+            return False, f"Missing {field}"
+    
+    # Price validation
+    price = coin.get('current_price', 0)
+    if price <= 0 or price > 1000000:  # Reasonable price range
+        return False, f"Invalid price: ${price}"
+    
+    # Volume validation
+    volume = coin.get('total_volume', 0)
+    if volume <= 0:
+        return False, "Invalid volume"
+    
+    return True, "Valid"
+
+def apply_professional_filters(coins, config):
     """
-    Apply single market filter: 100M+ market cap & 30M+ volume
-    Returns single list of qualifying coins (~175 coins)
+    Apply professional-grade market filters
+    Returns high-quality coins suitable for 4H analysis
     """
     blocked_coins = load_blocked_coins()
     qualifying_coins = []
     
-    min_market_cap = config['filters']['min_market_cap']
-    min_volume = config['filters']['min_volume_24h']
+    # Filter criteria
+    min_market_cap = config['market_filter']['min_market_cap']
+    min_volume = config['market_filter']['min_volume_24h']
     
-    blocked_count = 0
-    no_data_count = 0
+    # Statistics tracking
+    stats = {
+        'total_processed': len(coins),
+        'blocked': 0,
+        'invalid_data': 0,
+        'below_market_cap': 0,
+        'below_volume': 0,
+        'qualified': 0
+    }
+    
+    print(f"\n🔍 Applying professional filters...")
+    print(f"📊 Criteria: Market Cap ≥ ${min_market_cap/1_000_000:.0f}M, Volume ≥ ${min_volume/1_000_000:.0f}M")
     
     for coin in coins:
         symbol = coin.get('symbol', '').upper()
         market_cap = coin.get('market_cap') or 0
         volume_24h = coin.get('total_volume') or 0
         
-        # Skip blocked coins
-        if is_coin_blocked(symbol, blocked_coins):
-            blocked_count += 1
+        # Professional blocking
+        if is_professionally_blocked(symbol, blocked_coins):
+            stats['blocked'] += 1
             continue
         
-        # Skip coins with insufficient data
-        if not market_cap or not volume_24h:
-            no_data_count += 1
+        # Data quality validation
+        is_valid, reason = validate_coin_data_quality(coin)
+        if not is_valid:
+            stats['invalid_data'] += 1
             continue
         
-        # Apply single filter criteria
-        if market_cap >= min_market_cap and volume_24h >= min_volume:
-            qualifying_coins.append(coin)
+        # Market cap filter
+        if market_cap < min_market_cap:
+            stats['below_market_cap'] += 1
+            continue
+        
+        # Volume filter
+        if volume_24h < min_volume:
+            stats['below_volume'] += 1
+            continue
+        
+        # Qualified coin
+        qualifying_coins.append(coin)
+        stats['qualified'] += 1
     
-    print(f"Filter results:")
-    print(f"  - Qualifying coins: {len(qualifying_coins)}")
-    print(f"  - Blocked coins: {blocked_count}")
-    print(f"  - No data coins: {no_data_count}")
-    print(f"  - Total coins processed: {len(coins)}")
+    # Professional reporting
+    print(f"\n📋 PROFESSIONAL FILTER RESULTS:")
+    print(f"   ✅ Qualified coins: {stats['qualified']}")
+    print(f"   🚫 Blocked coins: {stats['blocked']}")
+    print(f"   📊 Below market cap: {stats['below_market_cap']}")
+    print(f"   📈 Below volume: {stats['below_volume']}")
+    print(f"   ❌ Invalid data: {stats['invalid_data']}")
+    print(f"   📊 Total processed: {stats['total_processed']}")
+    print(f"   🎯 Success rate: {stats['qualified']/stats['total_processed']*100:.1f}%")
     
     return qualifying_coins
