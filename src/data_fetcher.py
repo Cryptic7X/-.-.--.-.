@@ -136,10 +136,10 @@ class ProfessionalDataFetcher:
 
 def main():
     parser = argparse.ArgumentParser(description='Professional CipherB Market Data Fetcher')
-    parser.add_argument('--scan', action='store_true', help='Run professional market scan')
+    parser.add_argument('--daily-scan', action='store_true', help='Run daily market scan')
     args = parser.parse_args()
     
-    if args.scan:
+    if args.daily_scan:
         fetcher = ProfessionalDataFetcher()
         
         # Fetch comprehensive market data
