@@ -1,0 +1,35 @@
+name: Professional CipherB 4H Analysis
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # Every 10 minutes for optimal 4H signal detection
+  workflow_dispatch:
+    inputs:
+      force_scan:
+        description: 'Force market scan before analysis'
+        required: false
+        default: 'false'
+
+jobs:
+  professional_analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Professional System
+        uses: actions/checkout@v4
+      
+      - name: Setup Professional Python Environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install Professional Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Run Professional 4H Analysis
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
+          BINGX_SECRET_KEY: ${{ secrets.BINGX_SECRET_KEY }}
+        run: python src/professional_analyzer.py
