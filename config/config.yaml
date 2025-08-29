@@ -1,26 +1,41 @@
+# Professional 4H CipherB Trading System Configuration
+# Market Cap >= 100M, Volume >= 30M, 4H Timeframe Analysis
+
+system:
+  name: "CipherB Professional 4H System"
+  version: "2.0"
+  timeframe: "4h"
+  timezone: "+05:30"  # IST
+  
 # API Configuration
 coingecko:
   base_url: "https://api.coingecko.com/api/v3"
   rate_limit: 2.0
+  timeout: 30
 
-bingx:
-  base_url: "https://open-api.bingx.com"
-  rate_limit: 0.2  # Slower for reliability
+exchanges:
+  primary: "bingx"
+  fallback: ["kucoin"]
+  rate_limit: 0.3
+  timeout: 30
   
-# Single Market Filter (175 coins)
-filters:
+# Professional Market Filter (175 Quality Coins)
+market_filter:
   min_market_cap: 100000000   # 100M USD
   min_volume_24h: 30000000    # 30M USD
+  description: "Quality coins with established liquidity"
 
-# CipherB Indicator Settings (Your validated parameters)
+# CipherB Indicator Settings (Your Validated Parameters)
 cipherb:
+  timeframe: "4h"
   wt_channel_len: 9
   wt_average_len: 12
   wt_ma_len: 3
   oversold_threshold: -60
   overbought_threshold: 60
+  heikin_ashi: true
 
-# Stochastic RSI Settings (Standard parameters)
+# StochRSI Confirmation (Professional Standards)
 stoch_rsi:
   rsi_period: 14
   stoch_period: 14
@@ -29,14 +44,16 @@ stoch_rsi:
   oversold_threshold: 20
   overbought_threshold: 80
 
-# Alert Configuration
+# Professional Alert System
 alerts:
   cooldown_hours: 2
-  timezone_offset: "+05:30"
-  max_coins_per_run: 175  # Process all coins
-  batch_size: 25  # Process in smaller batches
+  max_coins_per_run: 175
+  batch_size: 30
+  enable_volume_filter: true
+  enable_price_validation: true
 
-# Pagination (unchanged)
-scan_pages: 5
-coins_per_page: 250
-
+# Scanning Configuration
+scan:
+  pages: 5
+  coins_per_page: 250
+  candles_required: 100  # 4h candles for analysis
