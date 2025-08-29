@@ -70,20 +70,18 @@ def fetch_coingecko_data(config):
     print(f"📊 Successfully fetched {len(all_coins)} coins from {successful_pages} pages")
     return all_coins
 
-def save_filtered_data(standard_coins, high_risk_coins):
+def save_filtered_data(qualifying_coins):
     """Save filtered coin data to cache"""
     cache_dir = os.path.join(os.path.dirname(__file__), '..', 'cache')
     os.makedirs(cache_dir, exist_ok=True)
     
     data = {
         'timestamp': datetime.utcnow().isoformat(),
-        'standard': standard_coins,
-        'high_risk': high_risk_coins,
+        'coins': qualifying_coins,
         'metadata': {
-            'standard_count': len(standard_coins),
-            'high_risk_count': len(high_risk_coins),
-            'total_opportunities': len(standard_coins) + len(high_risk_coins),
-            'last_updated': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+            'count': len(qualifying_coins),
+            'last_updated': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+            'filter_criteria': 'Market Cap >= 100M + Volume >= 30M'
         }
     }
     
@@ -91,7 +89,7 @@ def save_filtered_data(standard_coins, high_risk_coins):
     with open(cache_file, 'w') as f:
         json.dump(data, f, indent=2)
     
-    print(f"💾 Cached {len(standard_coins)} standard and {len(high_risk_coins)} high-risk coins")
+    print(f"💾 Cached {len(qualifying_coins)} qualifying coins")
 
 def main():
     parser = argparse.ArgumentParser()
@@ -109,11 +107,11 @@ def main():
             return
         
         print(f"📈 Processing {len(all_coins)} total coins...")
-        standard_coins, high_risk_coins = apply_filters(all_coins, config)
-        save_filtered_data(standard_coins, high_risk_coins)
+        qualifying_coins = apply_filters(all_coins, config)
+        save_filtered_data(qualifying_coins)
         
         print("✅ Daily scan completed successfully!")
-        print(f"📊 Market opportunities: {len(standard_coins)} standard + {len(high_risk_coins)} high-risk")
+        print(f"📊 Qualifying opportunities: {len(qualifying_coins)} coins")
 
 if __name__ == '__main__':
     main()
