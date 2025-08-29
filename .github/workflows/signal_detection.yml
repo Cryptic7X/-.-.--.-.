@@ -19,9 +19,7 @@ jobs:
       - name: Run CipherB signal detection
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          STANDARD_CHAT_ID: ${{ secrets.STANDARD_CHAT_ID }}
-          HIGH_RISK_CHAT_ID: ${{ secrets.HIGH_RISK_CHAT_ID }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
           BINGX_SECRET_KEY: ${{ secrets.BINGX_SECRET_KEY }}
         run: python src/main.py
-
