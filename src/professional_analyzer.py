@@ -257,8 +257,9 @@ def analyze_coin_professionally(self, coin_data):
         self.deduplicator.cleanup_expired_entries()
 
 def main():
-    analyzer = Professional2HAnalyzer()
+    analyzer = Professional2HAnalyzer()      # ← Updated to use the 2H class
     analyzer.run_professional_analysis()
+
 
 if __name__ == '__main__':
     main()
