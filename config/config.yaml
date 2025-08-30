@@ -46,7 +46,7 @@ stoch_rsi:
 
 # Professional Alert System
 alerts:
-  cooldown_hours: 2
+  cooldown_hours: 5
   max_coins_per_run: 175
   batch_size: 30
   enable_volume_filter: true
