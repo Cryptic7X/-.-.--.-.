@@ -174,69 +174,66 @@ class Professional2HAnalyzer:
         
         return True
     
-    def analyze_coin_professionally(self, coin_data):
-        """
-        Professional 2H analysis with PURE CipherB signals
-        No StochRSI confirmation needed - your indicator is back-tested and validated
-        """
-        symbol = coin_data.get('symbol', '').upper()
+def analyze_coin_professionally(self, coin_data):
+    """
+    Professional 2H analysis aligned with market candle closures
+    Alerts fire exactly once per 2H candle close
+    """
+    symbol = coin_data.get('symbol', '').upper()
+    
+    try:
+        # Fetch professional 2H data
+        price_df, exchange_used = self.fetch_professional_2h_data(symbol)
+        if price_df is None:
+            return False, f"No 2H data available"
         
-        try:
-            # Fetch professional 2H data
-            price_df, exchange_used = self.fetch_professional_2h_data(symbol)
-            if price_df is None:
-                return False, f"No 2H data available"
-            
-            # Convert to Heikin-Ashi (Required for your CipherB)
-            ha_data = heikin_ashi(price_df)
-            
-            # Apply your validated CipherB indicator (2H timeframe)
-            cipherb_signals = detect_cipherb_signals(ha_data, self.config['cipherb'])
-            if cipherb_signals.empty:
-                return False, "No CipherB signals"
-            
-            # Get latest 2H signal data
-            latest_signals = cipherb_signals.iloc[-1]
-            latest_timestamp = cipherb_signals.index[-1]
-            
-            # 🔑 KEY: Check if this is a NEW 2H candle signal
-            if not self.is_new_2h_candle(latest_timestamp):
-                return False, "Signal not from new 2H candle"
-            
-            signal_sent = False
-            
-            # PURE CipherB BUY signal (no confirmation needed)
-            if latest_signals['buySignal']:
-                if self.deduplicator.is_alert_allowed(symbol, 'BUY'):
-                    print(f"🟢 PURE CIPHERB BUY: {symbol} (2H) - Exchange: {exchange_used}")
-                    print(f"   📊 CipherB: wt1={latest_signals['wt1']:.1f}, wt2={latest_signals['wt2']:.1f}")
-                    print(f"   🕐 Timestamp: {latest_timestamp}")
-                    
-                    send_professional_alert(
-                        coin_data, 'BUY',
-                        latest_signals['wt1'], latest_signals['wt2'],
-                        exchange_used, latest_timestamp
-                    )
-                    signal_sent = True
-            
-            # PURE CipherB SELL signal (no confirmation needed)
-            if latest_signals['sellSignal']:
-                if self.deduplicator.is_alert_allowed(symbol, 'SELL'):
-                    print(f"🔴 PURE CIPHERB SELL: {symbol} (2H) - Exchange: {exchange_used}")
-                    print(f"   📊 CipherB: wt1={latest_signals['wt1']:.1f}, wt2={latest_signals['wt2']:.1f}")
-                    print(f"   🕐 Timestamp: {latest_timestamp}")
-                    
-                    send_professional_alert(
-                        coin_data, 'SELL',
-                        latest_signals['wt1'], latest_signals['wt2'],
-                        exchange_used, latest_timestamp
-                    )
-                    signal_sent = True
-            
-            return signal_sent, f"Analysis complete - {exchange_used}"
-            
-        except Exception as e:
-            return False, f"Analysis error: {str(e)[:100]}"
+        # Convert to Heikin-Ashi (Required for your CipherB)
+        ha_data = heikin_ashi(price_df)
+        
+        # Apply your validated CipherB indicator (2H timeframe)
+        cipherb_signals = detect_cipherb_signals(ha_data, self.config['cipherb'])
+        if cipherb_signals.empty:
+            return False, "No CipherB signals"
+        
+        # Get latest 2H signal data (most recent closed candle)
+        latest_signals = cipherb_signals.iloc[-1]
+        latest_timestamp = cipherb_signals.index[-1]
+        
+        signal_sent = False
+        
+        # PURE CipherB BUY signal (market-aligned)
+        if latest_signals['buySignal']:
+            if self.deduplicator.is_alert_allowed(symbol, 'BUY', latest_timestamp):
+                print(f"🟢 MARKET-ALIGNED BUY: {symbol} (2H) - Exchange: {exchange_used}")
+                print(f"   📊 CipherB: wt1={latest_signals['wt1']:.1f}, wt2={latest_signals['wt2']:.1f}")
+                print(f"   🕐 Candle Close: {latest_timestamp.strftime('%Y-%m-%d %H:%M IST')}")
+                
+                send_professional_alert(
+                    coin_data, 'BUY',
+                    latest_signals['wt1'], latest_signals['wt2'],
+                    exchange_used, latest_timestamp
+                )
+                signal_sent = True
+        
+        # PURE CipherB SELL signal (market-aligned)
+        if latest_signals['sellSignal']:
+            if self.deduplicator.is_alert_allowed(symbol, 'SELL', latest_timestamp):
+                print(f"🔴 MARKET-ALIGNED SELL: {symbol} (2H) - Exchange: {exchange_used}")
+                print(f"   📊 CipherB: wt1={latest_signals['wt1']:.1f}, wt2={latest_signals['wt2']:.1f}")
+                print(f"   🕐 Candle Close: {latest_timestamp.strftime('%Y-%m-%d %H:%M IST')}")
+                
+                send_professional_alert(
+                    coin_data, 'SELL',
+                    latest_signals['wt1'], latest_signals['wt2'],
+                    exchange_used, latest_timestamp
+                )
+                signal_sent = True
+        
+        return signal_sent, f"Analysis complete - {exchange_used}"
+        
+    except Exception as e:
+        return False, f"Analysis error: {str(e)[:100]}"
+
     
     def run_professional_analysis(self):
         """Execute professional 2H market analysis"""
