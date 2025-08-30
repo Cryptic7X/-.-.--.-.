@@ -1,16 +1,11 @@
-name: Professional CipherB 4H Analysis
+name: Professional CipherB 2H Analysis
 on:
   schedule:
-    - cron: '*/10 * * * *'  # Every 10 minutes for optimal 4H signal detection
+    - cron: '*/10 * * * *'  # Every 10 minutes for optimal 2H signal detection
   workflow_dispatch:
-    inputs:
-      force_scan:
-        description: 'Force market scan before analysis'
-        required: false
-        default: 'false'
 
 jobs:
-  professional_analysis:
+  professional_2h_analysis:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Professional System
@@ -26,7 +21,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
-      - name: Run Professional 4H Analysis
+      - name: Run Professional 2H Analysis
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
