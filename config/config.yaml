@@ -19,11 +19,13 @@ exchanges:
   rate_limit: 0.3
   timeout: 30
   
-# Professional Market Filter (175 Quality Coins)
+# Professional 2H CipherB Trading System Configuration
+
 market_filter:
-  min_market_cap: 100000000   # 100M USD
-  min_volume_24h: 30000000    # 30M USD
+  min_market_cap: 100000000   # 100M USD (unchanged)
+  min_volume_24h: 20000000    # 20M USD (reduced from 30M)
   description: "Quality coins with established liquidity"
+
 
 # CipherB Indicator Settings (Your Back-Tested Parameters)
 cipherb:
