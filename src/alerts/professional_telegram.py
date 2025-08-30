@@ -1,14 +1,15 @@
 """
-Professional Telegram Alert System for 4H CipherB Analysis
+Professional Telegram Alert System for 2H CipherB Analysis
+Pure CipherB signals - no confirmation needed
 """
 
 import os
 import requests
 from datetime import datetime
 
-def send_professional_alert(coin_data, signal_type, wt1_val, wt2_val, stoch_rsi_val, exchange_used, signal_timestamp):
+def send_professional_alert(coin_data, signal_type, wt1_val, wt2_val, exchange_used, signal_timestamp):
     """
-    Send professional-grade 4H CipherB alert
+    Send professional-grade 2H CipherB alert (Pure signals)
     """
     bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
     chat_id = os.getenv('TELEGRAM_CHAT_ID')
@@ -39,12 +40,6 @@ def send_professional_alert(coin_data, signal_type, wt1_val, wt2_val, stoch_rsi_
     # Professional signal formatting
     signal_emoji = "🟢 📈" if signal_type.upper() == "BUY" else "🔴 📉"
     
-    # Professional StochRSI status
-    if signal_type.upper() == "BUY":
-        stoch_status = "Oversold Confirmed ✅" if stoch_rsi_val <= 20 else f"Moderate ({stoch_rsi_val:.0f})"
-    else:
-        stoch_status = "Overbought Confirmed ✅" if stoch_rsi_val >= 80 else f"Moderate ({stoch_rsi_val:.0f})"
-    
     # Professional market cap classification
     if market_cap >= 5_000_000_000:
         cap_class = "🏆 MEGA CAP"
@@ -55,16 +50,15 @@ def send_professional_alert(coin_data, signal_type, wt1_val, wt2_val, stoch_rsi_
     else:
         cap_class = "⚡ GROWTH CAP"
     
-    # Professional chart links
+    # Professional 2H chart links (interval=120 for 2H)
     clean_symbol = symbol.replace('USDT', '').replace('USD', '')
-    tv_4h_link = f"https://www.tradingview.com/chart/?symbol={clean_symbol}USDT&interval=240"  # 4H = 240 minutes
-    binance_link = f"https://www.binance.com/en/trade/{clean_symbol}_USDT"
+    tv_2h_link = f"https://www.tradingview.com/chart/?symbol={clean_symbol}USDT&interval=120"
     
-    # Professional alert message
-    message = f"""{signal_emoji} *PROFESSIONAL CIPHERB {signal_type.upper()}*
+    # Professional alert message for 2H pure CipherB
+    message = f"""{signal_emoji} *PURE CIPHERB {signal_type.upper()}*
 
 🎯 *{symbol}/USDT* | {cap_class}
-📊 *4-HOUR TIMEFRAME ANALYSIS*
+📊 *2-HOUR TIMEFRAME ANALYSIS*
 
 💰 *Market Data:*
    • Price: {price_formatted}
@@ -72,28 +66,28 @@ def send_professional_alert(coin_data, signal_type, wt1_val, wt2_val, stoch_rsi_
    • Market Cap: ${market_cap_m:,.0f}M
    • Volume: ${volume_m:,.0f}M
 
-🔍 *PROFESSIONAL INDICATORS:*
-   🌊 *CipherB WaveTrend:*
+🔍 *PURE CIPHERB SIGNAL:*
+   🌊 *WaveTrend Values:*
       • wt1: {wt1_val:.1f}
       • wt2: {wt2_val:.1f}
-   ⚡ *Stoch RSI:* {stoch_rsi_val:.0f} ({stoch_status})
+   ✅ *Back-Tested & Validated*
 
 📊 *ANALYSIS DETAILS:*
    • Data Source: {exchange_used}
    • Signal Time: {signal_timestamp.strftime('%H:%M IST')}
-   • Timeframe: 4H Professional
-   • Confirmation: Dual Indicator ✅
+   • Timeframe: 2H Professional
+   • Method: Pure CipherB (No Confirmation)
 
-📈 *PROFESSIONAL CHARTS:*
-   • [TradingView 4H Chart]({tv_4h_link})
+📈 *PROFESSIONAL CHART:*
+   • [TradingView 2H Chart]({tv_2h_link})
 
 🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S IST')}
-⏰ Cooldown: 5 hours
+⏰ Cooldown: 3 hours
 
 ─────────────────────────────
-🤖 *CipherB Professional System v2.0*
-📊 4H Analysis | 175 Quality Coins | 100M+ Cap
-🎯 Professional Grade Trading Signals"""
+🤖 *CipherB Professional System v2.1*
+📊 2H Analysis | 175 Quality Coins | Pure Signals
+🎯 Back-Tested Private Indicator"""
 
     # Professional alert dispatch
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
