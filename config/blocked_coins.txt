@@ -38,17 +38,9 @@ XAUT
 PAXG
 DGX
 
-# Test/Demo Tokens
-TEST
-DEMO
-NULL
 
-# Exchange Tokens (Optional - remove if you want to trade these)
-# BNB
-# CRO
-# FTX
-# HT
-# OKB
+
+
 
 # Add your custom blocks below (one per line)
 # EXAMPLE1
