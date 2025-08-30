@@ -4,6 +4,12 @@ Professional CipherB 4H Analysis Engine
 High-performance 4-hour timeframe analysis with your validated indicator
 """
 
+#!/usr/bin/env python3
+"""
+Professional CipherB 4H Analysis Engine with New Candle Boundary Detection
+High-performance 4-hour timeframe analysis with duplicate signal prevention
+"""
+
 import json
 import os
 import sys
@@ -90,6 +96,43 @@ class ProfessionalAnalyzer:
         
         return exchanges
     
+    def is_new_4h_candle(self, signal_timestamp):
+        """
+        Check if this signal is from a NEW 4H candle (prevents duplicate alerts)
+        Only allows alerts within first 15 minutes of new 4H candle opening
+        """
+        current_time = datetime.now()
+        
+        # Calculate current 4H boundary (00:00, 04:00, 08:00, 12:00, 16:00, 20:00)
+        current_4h_start = current_time.replace(minute=0, second=0, microsecond=0)
+        current_4h_start = current_4h_start.replace(hour=(current_4h_start.hour // 4) * 4)
+        
+        # Calculate how long ago the current 4H candle started
+        time_since_4h_open = current_time - current_4h_start
+        
+        # Convert signal timestamp to timezone-naive for comparison
+        if signal_timestamp.tzinfo is not None:
+            signal_timestamp = signal_timestamp.replace(tzinfo=None)
+        
+        # Calculate when the signal's 4H candle started
+        signal_4h_start = signal_timestamp.replace(minute=0, second=0, microsecond=0)
+        signal_4h_start = signal_4h_start.replace(hour=(signal_4h_start.hour // 4) * 4)
+        
+        # Check if signal is from current 4H candle AND within first 15 minutes
+        is_current_candle = signal_4h_start == current_4h_start
+        is_fresh_signal = time_since_4h_open <= timedelta(minutes=15)
+        
+        if not is_current_candle:
+            print(f"   ⏰ Signal from old 4H candle: {signal_4h_start} vs current: {current_4h_start}")
+            return False
+        
+        if not is_fresh_signal:
+            print(f"   ⏰ Signal not fresh: {time_since_4h_open.total_seconds()/60:.1f}min since 4H open")
+            return False
+        
+        print(f"   ✅ Fresh 4H signal: {time_since_4h_open.total_seconds()/60:.1f}min since candle open")
+        return True
+    
     def fetch_professional_4h_data(self, symbol):
         """Fetch high-quality 4H OHLCV data with professional validation"""
         candles_required = self.config['scan']['candles_required']
@@ -136,7 +179,7 @@ class ProfessionalAnalyzer:
         return True
     
     def analyze_coin_professionally(self, coin_data):
-        """Professional 4H analysis with your validated CipherB indicator"""
+        """Professional 4H analysis with NEW CANDLE BOUNDARY CHECK"""
         symbol = coin_data.get('symbol', '').upper()
         
         try:
@@ -166,6 +209,10 @@ class ProfessionalAnalyzer:
             latest_signals = cipherb_signals.iloc[-1]
             latest_stoch_rsi = stoch_rsi.iloc[-1] if not stoch_rsi.empty else 50
             latest_timestamp = cipherb_signals.index[-1]
+            
+            # 🔑 KEY FIX: Check if this is a NEW 4H candle signal
+            if not self.is_new_4h_candle(latest_timestamp):
+                return False, "Signal not from new 4H candle"
             
             signal_sent = False
             
@@ -207,13 +254,14 @@ class ProfessionalAnalyzer:
             return False, f"Analysis error: {str(e)[:100]}"
     
     def run_professional_analysis(self):
-        """Execute professional 4H market analysis"""
+        """Execute professional 4H market analysis with duplicate prevention"""
         print(f"\n" + "="*80)
         print("🚀 PROFESSIONAL CIPHERB 4H ANALYSIS STARTING")
         print("="*80)
         print(f"🕐 Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S IST')}")
         print(f"⏱️ Timeframe: {self.config['system']['timeframe'].upper()}")
         print(f"🎯 System: {self.config['system']['name']}")
+        print(f"🔄 New Candle Detection: Active (15min window)")
         
         # Load professional market data
         coins = self.load_professional_market_data()
@@ -269,3 +317,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
