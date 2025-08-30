@@ -86,10 +86,9 @@ def send_professional_alert(coin_data, signal_type, wt1_val, wt2_val, stoch_rsi_
 
 📈 *PROFESSIONAL CHARTS:*
    • [TradingView 4H Chart]({tv_4h_link})
-   • [Binance Trading]({binance_link})
 
 🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S IST')}
-⏰ Cooldown: 2 hours
+⏰ Cooldown: 5 hours
 
 ─────────────────────────────
 🤖 *CipherB Professional System v2.0*
