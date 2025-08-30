@@ -91,44 +91,6 @@ class Professional2HAnalyzer:
         
         return exchanges
     
-    def is_new_2h_candle(self, signal_timestamp):
-        """
-        Check if this signal is from a NEW 2H candle (prevents duplicate alerts)
-        Only allows alerts within first 10 minutes of new 2H candle opening
-        2H boundaries: 00:00, 02:00, 04:00, 06:00, 08:00, 10:00, etc.
-        """
-        current_time = datetime.now()
-        
-        # Calculate current 2H boundary (00:00, 02:00, 04:00, 06:00, etc.)
-        current_2h_start = current_time.replace(minute=0, second=0, microsecond=0)
-        current_2h_start = current_2h_start.replace(hour=(current_2h_start.hour // 2) * 2)
-        
-        # Calculate how long ago the current 2H candle started
-        time_since_2h_open = current_time - current_2h_start
-        
-        # Convert signal timestamp to timezone-naive for comparison
-        if signal_timestamp.tzinfo is not None:
-            signal_timestamp = signal_timestamp.replace(tzinfo=None)
-        
-        # Calculate when the signal's 2H candle started
-        signal_2h_start = signal_timestamp.replace(minute=0, second=0, microsecond=0)
-        signal_2h_start = signal_2h_start.replace(hour=(signal_2h_start.hour // 2) * 2)
-        
-        # Check if signal is from current 2H candle AND within first 10 minutes
-        is_current_candle = signal_2h_start == current_2h_start
-        is_fresh_signal = time_since_2h_open <= timedelta(minutes=10)
-        
-        if not is_current_candle:
-            print(f"   ⏰ Signal from old 2H candle: {signal_2h_start} vs current: {current_2h_start}")
-            return False
-        
-        if not is_fresh_signal:
-            print(f"   ⏰ Signal not fresh: {time_since_2h_open.total_seconds()/60:.1f}min since 2H open")
-            return False
-        
-        print(f"   ✅ Fresh 2H signal: {time_since_2h_open.total_seconds()/60:.1f}min since candle open")
-        return True
-    
     def fetch_professional_2h_data(self, symbol):
         """Fetch high-quality 2H OHLCV data with professional validation"""
         candles_required = self.config['scan']['candles_required']
