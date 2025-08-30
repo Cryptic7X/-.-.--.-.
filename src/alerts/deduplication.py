@@ -12,69 +12,103 @@ Features:
 - Statistics tracking
 """
 
-import os
 import json
+import os
 from datetime import datetime, timedelta
 
 class AlertDeduplicator:
-    def __init__(self, cooldown_hours=2):
+    def __init__(self, cooldown_hours=3):
         self.cooldown_hours = cooldown_hours
-        self.cache_file = 'cache/alert_cache.json'
-        self.cache = self._load_cache()
+        self.cache_file = os.path.join(os.path.dirname(__file__), '..', '..', 'cache', 'alert_cache.json')
+        self.cache = self.load_persistent_cache()
     
-    def _load_cache(self):
-        """Load alert cache from file"""
-        if os.path.exists(self.cache_file):
-            try:
-                with open(self.cache_file, 'r') as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, FileNotFoundError):
-                pass
-        return {}
+    def load_persistent_cache(self):
+        """Load cache from file to persist between runs"""
+        try:
+            with open(self.cache_file, 'r') as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
     
-    def _save_cache(self):
-        """Save alert cache to file"""
+    def save_persistent_cache(self):
+        """Save cache to file"""
         os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)
         with open(self.cache_file, 'w') as f:
             json.dump(self.cache, f, indent=2)
     
-    def is_alert_allowed(self, symbol, signal_type):
+    def get_market_candle_start(self, signal_timestamp):
         """
-        Check if alert is allowed based on cooldown period
-        Returns True if alert should be sent, False if still in cooldown
+        Calculate market-aligned 2H candle start
+        Market candles: 05:30, 07:30, 09:30, 11:30, etc. IST
         """
-        key = f"{symbol.upper()}_{signal_type.upper()}"
-        current_time = datetime.utcnow()
+        # Convert to timezone-naive if needed
+        if signal_timestamp.tzinfo is not None:
+            signal_timestamp = signal_timestamp.replace(tzinfo=None)
+        
+        # Start from 05:30 IST base
+        base_hour = 5
+        base_minute = 30
+        
+        # Calculate which 2H period this timestamp falls into
+        minutes_from_base = (signal_timestamp.hour - base_hour) * 60 + (signal_timestamp.minute - base_minute)
+        if minutes_from_base < 0:
+            # Handle times before 05:30 (previous day)
+            minutes_from_base += 24 * 60
+        
+        # Find the 2H period (120 minutes each)
+        period_index = minutes_from_base // 120
+        
+        # Calculate the candle start time
+        candle_start_minutes = base_hour * 60 + base_minute + (period_index * 120)
+        candle_start_hour = (candle_start_minutes // 60) % 24
+        candle_start_minute = candle_start_minutes % 60
+        
+        candle_start = signal_timestamp.replace(
+            hour=candle_start_hour,
+            minute=candle_start_minute,
+            second=0,
+            microsecond=0
+        )
+        
+        return candle_start
+    
+    def is_alert_allowed(self, symbol, signal_type, signal_timestamp):
+        """
+        Check if alert is allowed based on market candle timing
+        Each alert fires only once per 2H market candle
+        """
+        # Get the market-aligned candle start
+        candle_start = self.get_market_candle_start(signal_timestamp)
+        
+        # Create unique key for this candle
+        key = f"{symbol}_{signal_type}_{candle_start.strftime('%Y-%m-%d_%H:%M')}"
         
         if key in self.cache:
-            last_alert_time = datetime.fromisoformat(self.cache[key])
-            time_diff = current_time - last_alert_time
-            
-            if time_diff < timedelta(hours=self.cooldown_hours):
-                # Still in cooldown period
-                return False
+            print(f"   🚫 Alert already sent for {symbol} {signal_type} in candle starting {candle_start.strftime('%H:%M IST')}")
+            return False
         
-        # Update cache with current time
-        self.cache[key] = current_time.isoformat()
-        self._save_cache()
-        
+        # Allow alert and save to persistent cache
+        self.cache[key] = datetime.utcnow().isoformat()
+        self.save_persistent_cache()
+        print(f"   ✅ Alert allowed for {symbol} {signal_type} - Candle: {candle_start.strftime('%H:%M IST')}")
         return True
     
     def cleanup_expired_entries(self):
-        """Remove expired entries from cache"""
+        """Remove expired entries (older than 7 days)"""
         current_time = datetime.utcnow()
         expired_keys = []
         
         for key, timestamp_str in self.cache.items():
             try:
-                timestamp = datetime.fromisoformat(timestamp_str)
-                if current_time - timestamp > timedelta(hours=self.cooldown_hours * 2):
+                last_alert = datetime.fromisoformat(timestamp_str)
+                if current_time - last_alert > timedelta(days=7):
                     expired_keys.append(key)
             except ValueError:
-                expired_keys.append(key)
+                expired_keys.append(key)  # Remove invalid entries
         
         for key in expired_keys:
             del self.cache[key]
         
         if expired_keys:
-            self._save_cache()
+            self.save_persistent_cache()
+            print(f"🧹 Cleaned up {len(expired_keys)} expired cache entries")
