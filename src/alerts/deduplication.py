@@ -87,23 +87,23 @@ class AlertDeduplicator:
 
     
     def is_alert_allowed(self, symbol, signal_type, signal_timestamp):
-        # Calculate 2H candle start (market-aligned)
-        if signal_timestamp.tzinfo is not None:
-            signal_timestamp = signal_timestamp.replace(tzinfo=None)
-        
-        # Round to 2H boundary: 00:00, 02:00, 04:00, etc.
-        candle_hour = (signal_timestamp.hour // 2) * 2
-        candle_start = signal_timestamp.replace(hour=candle_hour, minute=0, second=0, microsecond=0)
-        
-        # Create unique key per 2H candle
+        candle_start = self.get_market_candle_start(signal_timestamp)
         key = f"{symbol}_{signal_type}_{candle_start.strftime('%Y%m%d_%H%M')}"
         
+        # DEBUG: Print what's happening
+        print(f"🔍 DEBUG: {symbol} {signal_type}")
+        print(f"   Signal timestamp: {signal_timestamp}")
+        print(f"   Calculated candle start: {candle_start}")
+        print(f"   Cache key: {key}")
+        print(f"   Key exists in cache: {key in self.cache}")
+        
         if key in self.cache:
-            print(f"   🚫 Already alerted: {symbol} {signal_type} at {candle_start}")
+            print(f"   ❌ BLOCKED - Already sent at: {self.cache[key]}")
             return False
         
         self.cache[key] = datetime.utcnow().isoformat()
         self.save_persistent_cache()
+        print(f"   ✅ ALLOWED - First time for this candle")
         return True
 
     
