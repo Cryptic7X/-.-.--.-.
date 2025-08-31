@@ -73,25 +73,25 @@ class AlertDeduplicator:
         return candle_start
     
     def is_alert_allowed(self, symbol, signal_type, signal_timestamp):
-        """
-        Check if alert is allowed based on market candle timing
-        Each alert fires only once per 2H market candle
-        """
-        # Get the market-aligned candle start
-        candle_start = self.get_market_candle_start(signal_timestamp)
+        # Calculate 2H candle start (market-aligned)
+        if signal_timestamp.tzinfo is not None:
+            signal_timestamp = signal_timestamp.replace(tzinfo=None)
         
-        # Create unique key for this candle
-        key = f"{symbol}_{signal_type}_{candle_start.strftime('%Y-%m-%d_%H:%M')}"
+        # Round to 2H boundary: 00:00, 02:00, 04:00, etc.
+        candle_hour = (signal_timestamp.hour // 2) * 2
+        candle_start = signal_timestamp.replace(hour=candle_hour, minute=0, second=0, microsecond=0)
+        
+        # Create unique key per 2H candle
+        key = f"{symbol}_{signal_type}_{candle_start.strftime('%Y%m%d_%H%M')}"
         
         if key in self.cache:
-            print(f"   🚫 Alert already sent for {symbol} {signal_type} in candle starting {candle_start.strftime('%H:%M IST')}")
+            print(f"   🚫 Already alerted: {symbol} {signal_type} at {candle_start}")
             return False
         
-        # Allow alert and save to persistent cache
         self.cache[key] = datetime.utcnow().isoformat()
         self.save_persistent_cache()
-        print(f"   ✅ Alert allowed for {symbol} {signal_type} - Candle: {candle_start.strftime('%H:%M IST')}")
         return True
+
     
     def cleanup_expired_entries(self):
         """Remove expired entries (older than 7 days)"""
