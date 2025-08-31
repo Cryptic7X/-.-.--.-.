@@ -23,12 +23,15 @@ class AlertDeduplicator:
         self.cache = self.load_persistent_cache()
     
     def load_persistent_cache(self):
-        """Load cache from file to persist between runs"""
         try:
             with open(self.cache_file, 'r') as f:
-                return json.load(f)
+                cache = json.load(f)
+            print(f"📁 Loaded cache with {len(cache)} entries")
+            return cache
         except (FileNotFoundError, json.JSONDecodeError):
+            print("📁 No existing cache found, starting fresh")
             return {}
+
     
     def save_persistent_cache(self):
         """Save cache to file"""
