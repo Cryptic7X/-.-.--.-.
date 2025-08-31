@@ -37,19 +37,53 @@ class AlertDeduplicator:
             json.dump(self.cache, f, indent=2)
     
     def get_market_candle_start(self, signal_timestamp):
-        # Ensure UTC
-        if signal_timestamp.tzinfo:
-            utc_ts = signal_timestamp.tz_convert('UTC')
+        """
+        Calculate market-aligned 2H candle start for IST boundaries
+        IST 2H candles: 03:30-05:30, 05:30-07:30, 07:30-09:30, etc.
+        """
+        # Convert to timezone-naive datetime if needed
+        if hasattr(signal_timestamp, 'tzinfo') and signal_timestamp.tzinfo is not None:
+            # Already in IST, convert to naive
+            ts = signal_timestamp.replace(tzinfo=None)
         else:
-            utc_ts = signal_timestamp
-    
-        # Floor to nearest 2-hour UTC boundary (00:00,02:00,...)
-        boundary_hour = (utc_ts.hour // 2) * 2
-        candle_start_utc = utc_ts.replace(hour=boundary_hour, minute=0, second=0, microsecond=0)
-    
-        # Convert back to IST
-        candle_start_ist = candle_start_utc + timedelta(hours=5, minutes=30)
-        return candle_start_ist
+            ts = signal_timestamp
+        
+        # IST 2H candles start at 03:30, 05:30, 07:30, 09:30, etc.
+        # Find which 2H period this timestamp belongs to
+        hour = ts.hour
+        minute = ts.minute
+        
+        # Convert to minutes since midnight
+        total_minutes = hour * 60 + minute
+        
+        # IST 2H boundaries in minutes: 210 (03:30), 330 (05:30), 450 (07:30), etc.
+        # Each period is 120 minutes
+        # First boundary is at 03:30 = 210 minutes
+        
+        if total_minutes < 210:  # Before 03:30, belongs to previous day's 01:30-03:30
+            candle_start_minutes = 90  # 01:30
+            ts = ts - timedelta(days=1) if total_minutes >= 90 else ts
+        else:
+            # Find which 2H period (starting from 03:30)
+            minutes_from_0330 = total_minutes - 210  # Minutes since 03:30
+            period_index = minutes_from_0330 // 120  # Which 2H period
+            candle_start_minutes = 210 + (period_index * 120)  # Start of this period
+        
+        # Convert back to hour:minute
+        candle_hour = candle_start_minutes // 60
+        candle_minute = candle_start_minutes % 60
+        
+        # Create candle start timestamp
+        candle_start = ts.replace(
+            hour=candle_hour % 24,
+            minute=candle_minute,
+            second=0,
+            microsecond=0
+        )
+        
+        print(f"🕐 Signal at {ts.strftime('%H:%M')} → Candle start: {candle_start.strftime('%H:%M')}")
+        return candle_start
+
 
     
     def is_alert_allowed(self, symbol, signal_type, signal_timestamp):
