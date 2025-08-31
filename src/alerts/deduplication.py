@@ -37,40 +37,20 @@ class AlertDeduplicator:
             json.dump(self.cache, f, indent=2)
     
     def get_market_candle_start(self, signal_timestamp):
-        """
-        Calculate market-aligned 2H candle start
-        Market candles: 05:30, 07:30, 09:30, 11:30, etc. IST
-        """
-        # Convert to timezone-naive if needed
-        if signal_timestamp.tzinfo is not None:
-            signal_timestamp = signal_timestamp.replace(tzinfo=None)
-        
-        # Start from 05:30 IST base
-        base_hour = 5
-        base_minute = 30
-        
-        # Calculate which 2H period this timestamp falls into
-        minutes_from_base = (signal_timestamp.hour - base_hour) * 60 + (signal_timestamp.minute - base_minute)
-        if minutes_from_base < 0:
-            # Handle times before 05:30 (previous day)
-            minutes_from_base += 24 * 60
-        
-        # Find the 2H period (120 minutes each)
-        period_index = minutes_from_base // 120
-        
-        # Calculate the candle start time
-        candle_start_minutes = base_hour * 60 + base_minute + (period_index * 120)
-        candle_start_hour = (candle_start_minutes // 60) % 24
-        candle_start_minute = candle_start_minutes % 60
-        
-        candle_start = signal_timestamp.replace(
-            hour=candle_start_hour,
-            minute=candle_start_minute,
-            second=0,
-            microsecond=0
-        )
-        
-        return candle_start
+        # Ensure UTC
+        if signal_timestamp.tzinfo:
+            utc_ts = signal_timestamp.tz_convert('UTC')
+        else:
+            utc_ts = signal_timestamp
+    
+        # Floor to nearest 2-hour UTC boundary (00:00,02:00,...)
+        boundary_hour = (utc_ts.hour // 2) * 2
+        candle_start_utc = utc_ts.replace(hour=boundary_hour, minute=0, second=0, microsecond=0)
+    
+        # Convert back to IST
+        candle_start_ist = candle_start_utc + timedelta(hours=5, minutes=30)
+        return candle_start_ist
+
     
     def is_alert_allowed(self, symbol, signal_type, signal_timestamp):
         # Calculate 2H candle start (market-aligned)
