@@ -17,6 +17,14 @@ stochrsi:
   oversold: 30
   overbought: 70
 
+# Market Data Refresh Settings
+market_data:
+  min_market_cap: 100000000      # $100M minimum
+  min_volume_24h: 20000000       # $20M minimum daily volume
+  max_pages: 2                   # 2 page = 250 coins (adjust as needed)
+  per_page: 250                  # CoinGecko standard
+  refresh_hours: 6               # Refresh every 6 hours
+
 # System Settings
 system:
   freshness_minutes: 2
@@ -35,3 +43,5 @@ alerts:
   enable_telegram: true
   enable_fallback_alerts: true
   show_stochrsi_details: true
+  enable_market_refresh_alerts: false  # Disabled per your request
+
