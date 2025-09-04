@@ -1,72 +1,97 @@
 #!/usr/bin/env python3
 """
-Market Data Refresh System
-- Fetches coins from CoinGecko API
-- Filters by market cap, volume, and other criteria
-- Excludes blocked/blacklisted coins
-- Saves filtered coin universe to cache
+Fixed Market Data Refresh System
+- Uses personal CoinGecko API key correctly
+- Higher filtering thresholds: market cap >= $100M, volume >= $20M
+- Blocked coins from external text file
+- Configurable pagination via config.yaml
+- No daily Telegram success alerts
 """
 
 import requests
 import json
 import os
 import time
+import yaml
 from datetime import datetime, timedelta
 
 class MarketDataRefresh:
     def __init__(self):
         self.api_key = os.getenv('COINGECKO_API_KEY', '')
         self.cache_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'cache')
-        self.cache_file = os.path.join(self.cache_dir, 'high_risk_market_data.json')
-        self.blocked_coins_file = os.path.join(self.cache_dir, 'blocked_coins.json')
+        self.config_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'config')
         
-        # Filtering criteria
-        self.min_market_cap = 50_000_000  # $50M minimum
-        self.min_volume_24h = 5_000_000   # $5M minimum daily volume
-        self.max_coins = 500              # Top 500 coins max
-        self.per_page = 250               # API pagination
+        # Load configuration
+        self.config = self.load_config()
+        
+        # File paths
+        self.cache_file = os.path.join(self.cache_dir, 'high_risk_market_data.json')
+        self.blocked_coins_file = os.path.join(self.config_dir, 'blocked_coins.txt')
+        
+        # Filtering criteria from config
+        self.min_market_cap = self.config.get('market_data', {}).get('min_market_cap', 100_000_000)  # $100M
+        self.min_volume_24h = self.config.get('market_data', {}).get('min_volume_24h', 20_000_000)   # $20M
+        self.max_pages = self.config.get('market_data', {}).get('max_pages', 1)                      # 1 page = 250 coins
+        self.per_page = 250  # CoinGecko standard
         
         self.blocked_coins = self.load_blocked_coins()
     
+    def load_config(self):
+        """Load configuration from config.yaml"""
+        try:
+            config_path = os.path.join(self.config_dir, 'config.yaml')
+            with open(config_path, 'r') as f:
+                return yaml.safe_load(f)
+        except Exception as e:
+            print(f"⚠️ Config load failed: {e}, using defaults")
+            return {}
+    
     def load_blocked_coins(self):
-        """Load blocked/blacklisted coins"""
+        """Load blocked coins from text file"""
         try:
             if os.path.exists(self.blocked_coins_file):
                 with open(self.blocked_coins_file, 'r') as f:
-                    data = json.load(f)
-                blocked = data.get('blocked_coins', [])
-                print(f"📝 Loaded {len(blocked)} blocked coins")
+                    blocked = [line.strip().lower() for line in f if line.strip() and not line.startswith('#')]
+                print(f"📝 Loaded {len(blocked)} blocked coins from {self.blocked_coins_file}")
                 return set(blocked)
             else:
-                # Default blocked coins if file doesn't exist
+                # Create default blocked coins file
                 default_blocked = [
-                    'tether', 'usd-coin', 'binance-usd', 'dai', 'true-usd', 'paxos-standard',
-                    'gemini-dollar', 'frax', 'terrausd', 'neutrino', 'magic-internet-money',
-                    'fei-usd', 'liquity-usd', 'alchemix-usd', 'olympus', 'wonderland',
-                    'bitcoin-cash-sv', 'bitcoin-gold', 'bitcoin-diamond', 'bitcoin-private'
+                    '# Stablecoins',
+                    'tether',
+                    'usd-coin', 
+                    'binance-usd',
+                    'dai',
+                    'true-usd',
+                    'frax',
+                    'paxos-standard',
+                    '# Failed/Risky Projects',
+                    'terra-luna',
+                    'terra-luna-2',
+                    'ftx-token',
+                    'celsius-degree-token',
+                    '# Bitcoin Forks (often less reliable)',
+                    'bitcoin-cash',
+                    'bitcoin-sv',
+                    'bitcoin-gold',
+                    'bitcoin-diamond',
+                    '# Low Quality/Scam Prone',
+                    'safemoon',
+                    'safemoon-2',
                 ]
                 
-                # Save default blocked coins
-                self.save_blocked_coins(default_blocked)
-                return set(default_blocked)
+                os.makedirs(self.config_dir, exist_ok=True)
+                with open(self.blocked_coins_file, 'w') as f:
+                    f.write('\n'.join(default_blocked))
+                
+                # Return clean list without comments
+                clean_blocked = [coin for coin in default_blocked if not coin.startswith('#')]
+                print(f"📝 Created default blocked coins file: {len(clean_blocked)} coins")
+                return set(clean_blocked)
+                
         except Exception as e:
             print(f"⚠️ Error loading blocked coins: {e}")
             return set()
-    
-    def save_blocked_coins(self, blocked_list):
-        """Save blocked coins list"""
-        try:
-            os.makedirs(self.cache_dir, exist_ok=True)
-            data = {
-                'blocked_coins': list(blocked_list),
-                'updated_at': datetime.utcnow().isoformat(),
-                'total_blocked': len(blocked_list)
-            }
-            with open(self.blocked_coins_file, 'w') as f:
-                json.dump(data, f, indent=2)
-            print(f"💾 Saved {len(blocked_list)} blocked coins")
-        except Exception as e:
-            print(f"❌ Error saving blocked coins: {e}")
     
     def get_coingecko_headers(self):
         """Get headers for CoinGecko API requests"""
@@ -76,17 +101,17 @@ class MarketDataRefresh:
         }
         
         if self.api_key:
-            headers['x-cg-pro-api-key'] = self.api_key
-            print("✅ Using CoinGecko Pro API key")
+            headers['x-cg-demo-api-key'] = self.api_key  # Use demo API key header
+            print("✅ Using CoinGecko API key")
         else:
-            print("⚠️ Using CoinGecko Free API (rate limited)")
+            print("⚠️ No API key - using free tier (very limited)")
         
         return headers
     
     def fetch_coins_page(self, page=1):
-        """Fetch one page of coins from CoinGecko"""
-        base_url = "https://pro-api.coingecko.com/api/v3" if self.api_key else "https://api.coingecko.com/api/v3"
-        url = f"{base_url}/coins/markets"
+        """Fetch one page of coins from CoinGecko using standard API"""
+        # Use standard API endpoint (not pro)
+        url = "https://api.coingecko.com/api/v3/coins/markets"
         
         params = {
             'vs_currency': 'usd',
@@ -94,39 +119,43 @@ class MarketDataRefresh:
             'per_page': self.per_page,
             'page': page,
             'sparkline': 'false',
-            'price_change_percentage': '24h',
-            'locale': 'en'
+            'price_change_percentage': '24h'
         }
         
         headers = self.get_coingecko_headers()
         
         try:
+            print(f"🔄 Fetching page {page} from CoinGecko...")
             response = requests.get(url, params=params, headers=headers, timeout=30)
+            
+            if response.status_code == 429:
+                print("⚠️ Rate limited, waiting 60 seconds...")
+                time.sleep(60)
+                response = requests.get(url, params=params, headers=headers, timeout=30)
+            
             response.raise_for_status()
-            
             coins = response.json()
-            print(f"📊 Fetched page {page}: {len(coins)} coins")
             
-            # Rate limiting
-            if not self.api_key:  # Free API needs more conservative rate limiting
-                time.sleep(2)
-            else:
-                time.sleep(0.5)
+            print(f"✅ Page {page}: {len(coins)} coins fetched")
+            
+            # Rate limiting - be conservative
+            time.sleep(6)  # 10 requests per minute for demo key
             
             return coins
             
         except requests.exceptions.RequestException as e:
             print(f"❌ Error fetching page {page}: {e}")
+            if hasattr(e, 'response') and e.response is not None:
+                print(f"   Response: {e.response.status_code} - {e.response.text[:200]}")
             return []
     
     def filter_coin(self, coin):
         """Apply filtering criteria to a single coin"""
         try:
-            # Basic data validation
             if not coin or not isinstance(coin, dict):
                 return False, "Invalid coin data"
             
-            coin_id = coin.get('id', '')
+            coin_id = coin.get('id', '').lower()
             symbol = coin.get('symbol', '').upper()
             name = coin.get('name', '')
             market_cap = coin.get('market_cap') or 0
@@ -135,73 +164,67 @@ class MarketDataRefresh:
             
             # Check blocked coins
             if coin_id in self.blocked_coins:
-                return False, f"Blocked coin: {coin_id}"
+                return False, f"Blocked: {coin_id}"
             
-            # Market cap filter
+            # Market cap filter (updated to $100M)
             if market_cap < self.min_market_cap:
-                return False, f"Market cap too low: ${market_cap:,.0f}"
+                return False, f"Low market cap: ${market_cap:,.0f}"
             
-            # Volume filter
+            # Volume filter (updated to $20M)
             if volume_24h < self.min_volume_24h:
-                return False, f"Volume too low: ${volume_24h:,.0f}"
+                return False, f"Low volume: ${volume_24h:,.0f}"
             
-            # Price filter (exclude very low prices that might be inactive)
+            # Price validation
             if current_price <= 0:
                 return False, "Invalid price"
             
-            # Basic symbol validation
-            if len(symbol) < 2 or len(symbol) > 10:
+            # Symbol validation
+            if len(symbol) < 2 or len(symbol) > 12:
                 return False, f"Invalid symbol: {symbol}"
             
-            return True, "Passed all filters"
+            return True, "Passed filters"
             
         except Exception as e:
             return False, f"Filter error: {e}"
     
     def refresh_market_data(self):
-        """Main method to refresh market data"""
-        print("="*60)
-        print("🔄 MARKET DATA REFRESH STARTING")
-        print("="*60)
-        print(f"🕐 Started at: {datetime.utcnow().isoformat()} UTC")
+        """Main refresh method"""
+        print("="*70)
+        print("🔄 MARKET DATA REFRESH - FIXED VERSION")
+        print("="*70)
+        print(f"🕐 Started: {datetime.utcnow().isoformat()} UTC")
         print(f"🚫 Blocked coins: {len(self.blocked_coins)}")
         print(f"💰 Min market cap: ${self.min_market_cap:,}")
-        print(f"📊 Min volume: ${self.min_volume_24h:,}")
-        print(f"🔢 Max coins: {self.max_coins}")
+        print(f"📊 Min volume 24h: ${self.min_volume_24h:,}")
+        print(f"📄 Max pages: {self.max_pages}")
+        print(f"🔑 API key: {'Yes' if self.api_key else 'No'}")
         
         all_coins = []
         filtered_coins = []
-        page = 1
-        total_pages = (self.max_coins + self.per_page - 1) // self.per_page
         
-        # Fetch coins from multiple pages
-        while page <= total_pages:
-            print(f"\n🔄 Processing page {page}/{total_pages}")
-            
+        # Fetch pages
+        for page in range(1, self.max_pages + 1):
             coins_page = self.fetch_coins_page(page)
             if not coins_page:
                 print(f"❌ No data on page {page}, stopping")
                 break
             
             all_coins.extend(coins_page)
-            page += 1
             
-            # Stop if we have enough coins
-            if len(all_coins) >= self.max_coins:
-                all_coins = all_coins[:self.max_coins]
+            if len(coins_page) < self.per_page:
+                print(f"ℹ️ Page {page} returned {len(coins_page)} coins (less than {self.per_page}), likely last page")
                 break
         
         print(f"\n📊 Total coins fetched: {len(all_coins)}")
         
-        # Filter coins
-        print(f"\n🔍 Applying filters...")
+        # Apply filters
+        print(f"🔍 Applying enhanced filters...")
         filter_stats = {}
         
         for coin in all_coins:
             passed, reason = self.filter_coin(coin)
             
             if passed:
-                # Clean up coin data for storage
                 clean_coin = {
                     'id': coin.get('id', ''),
                     'symbol': coin.get('symbol', '').upper(),
@@ -216,31 +239,30 @@ class MarketDataRefresh:
                 }
                 filtered_coins.append(clean_coin)
             else:
-                # Track filter reasons for debugging
                 filter_type = reason.split(':')[0] if ':' in reason else reason
                 filter_stats[filter_type] = filter_stats.get(filter_type, 0) + 1
         
         # Sort by market cap
         filtered_coins.sort(key=lambda x: x.get('market_cap', 0), reverse=True)
         
-        # Save to cache
+        # Save cache
         self.save_market_cache(filtered_coins, filter_stats)
         
-        print(f"\n" + "="*60)
+        print(f"\n" + "="*70)
         print("✅ MARKET DATA REFRESH COMPLETE")
-        print("="*60)
-        print(f"📊 Total fetched: {len(all_coins)} coins")
-        print(f"✅ Filtered coins: {len(filtered_coins)} coins")
-        print(f"🚫 Blocked: {filter_stats.get('Blocked coin', 0)}")
-        print(f"💰 Low market cap: {filter_stats.get('Market cap too low', 0)}")
-        print(f"📉 Low volume: {filter_stats.get('Volume too low', 0)}")
-        print(f"💾 Cache updated: {self.cache_file}")
-        print("="*60)
+        print("="*70)
+        print(f"📊 Fetched: {len(all_coins)} coins")
+        print(f"✅ Filtered: {len(filtered_coins)} coins")
+        print(f"🚫 Blocked: {filter_stats.get('Blocked', 0)}")
+        print(f"💰 Low market cap: {filter_stats.get('Low market cap', 0)}")
+        print(f"📉 Low volume: {filter_stats.get('Low volume', 0)}")
+        print(f"💾 Cache saved: {len(filtered_coins)} coins")
+        print("="*70)
         
         return len(filtered_coins)
     
     def save_market_cache(self, filtered_coins, filter_stats):
-        """Save filtered coins to cache file"""
+        """Save filtered coins to cache"""
         try:
             os.makedirs(self.cache_dir, exist_ok=True)
             
@@ -252,21 +274,21 @@ class MarketDataRefresh:
                     'filter_criteria': {
                         'min_market_cap': self.min_market_cap,
                         'min_volume_24h': self.min_volume_24h,
-                        'max_coins': self.max_coins,
+                        'max_pages': self.max_pages,
                         'blocked_coins_count': len(self.blocked_coins)
                     },
                     'filter_stats': filter_stats,
-                    'api_source': 'CoinGecko Pro' if self.api_key else 'CoinGecko Free'
+                    'api_source': 'CoinGecko Standard API'
                 }
             }
             
             with open(self.cache_file, 'w') as f:
                 json.dump(cache_data, f, indent=2)
             
-            print(f"💾 Saved {len(filtered_coins)} coins to cache")
+            print(f"💾 Cache saved: {self.cache_file}")
             
         except Exception as e:
-            print(f"❌ Error saving cache: {e}")
+            print(f"❌ Cache save failed: {e}")
 
 if __name__ == '__main__':
     refresher = MarketDataRefresh()
