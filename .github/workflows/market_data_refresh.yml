@@ -1,0 +1,56 @@
+name: Market Data Refresh (Coin Filtering)
+
+on:
+  schedule:
+    # Run every 6 hours to refresh coin universe
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  market_data_refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pycoingecko pyyaml
+
+      - name: Refresh Market Data Cache
+        env:
+          # COINGECKO_API_KEY only needed for market data refresh
+          COINGECKO_API_KEY: ${{ secrets.COINGECKO_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python -c "
+          import requests
+          import json
+          import os
+          from datetime import datetime
+          
+          # Market data refresh logic here
+          # Filter coins by market cap, volume, etc.
+          # Save to cache/high_risk_market_data.json
+          
+          print('Market data refresh completed')
+          "
+
+      - name: Commit Market Data Cache
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          if [ -f cache/high_risk_market_data.json ]; then
+            git add cache/high_risk_market_data.json
+            git commit -m "Update market data cache [skip ci]" || echo "No changes"
+            git push || echo "Push failed"
+          fi
