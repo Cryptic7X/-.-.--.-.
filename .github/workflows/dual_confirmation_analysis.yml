@@ -1,0 +1,65 @@
+name: Dual Confirmation Analysis (15m CipherB + 3h StochRSI)
+
+on:
+  schedule:
+    # Run 2 minutes after each 15-minute boundary
+    - cron: '2,17,32,47 * * * *'
+  workflow_dispatch:
+
+jobs:
+  dual_confirmation_analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Cache Python Dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Dual Confirmation Analysis
+        env:
+          # Updated environment variable name
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
+          BINGX_SECRET_KEY: ${{ secrets.BINGX_SECRET_KEY }}
+          # Note: COINGECKO_API_KEY not needed for this analysis
+        run: python src/analyzer/dual_confirmation.py
+
+      - name: Commit Fresh Signal Cache
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          if [ -f cache/fresh_alerts_15m.json ]; then
+            git add cache/fresh_alerts_15m.json
+            git commit -m "Update dual confirmation cache [skip ci]" || echo "No cache changes"
+            git push || echo "Push failed"
+          fi
+
+      - name: Notify on Failure
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            -d text="❌ Dual Confirmation Analysis failed at $(date '+%H:%M:%S IST')" \
+            -d parse_mode="Markdown"
