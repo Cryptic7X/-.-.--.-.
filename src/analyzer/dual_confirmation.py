@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Dual Confirmation Trading System
+Enhanced Dual Confirmation Trading System
 - CipherB exact signals on 15m timeframe  
 - StochRSI %D confirmation on 3h timeframe
 - Fresh signals only (within 2-minute window)
-- Enhanced Telegram alerts with confirmation details
+- DYNAMIC BLOCKED COIN FILTERING during analysis
 """
 
 import os
@@ -34,11 +34,59 @@ class DualConfirmationAnalyzer:
         self.deduplicator = FreshSignalDeduplicator(freshness_minutes=2)
         self.exchanges = self.init_exchanges()
         self.market_data = self.load_market_data()
+        
+        # NEW: Load blocked coins for dynamic filtering
+        self.blocked_coins = self.load_blocked_coins()
 
     def load_config(self):
         config_path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'config.yaml')
         with open(config_path, 'r') as f:
             return yaml.safe_load(f)
+
+    def load_blocked_coins(self):
+        """
+        Load blocked coins from text file for dynamic filtering
+        """
+        blocked_coins_file = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'blocked_coins.txt')
+        
+        try:
+            if os.path.exists(blocked_coins_file):
+                with open(blocked_coins_file, 'r') as f:
+                    blocked = set()
+                    for line in f:
+                        line = line.strip().lower()
+                        # Skip empty lines and comments
+                        if line and not line.startswith('#'):
+                            blocked.add(line)
+                
+                print(f"🚫 Loaded {len(blocked)} blocked coins for dynamic filtering")
+                return blocked
+            else:
+                print("⚠️ No blocked coins file found - no dynamic blocking")
+                return set()
+                
+        except Exception as e:
+            print(f"⚠️ Error loading blocked coins: {e}")
+            return set()
+
+    def is_coin_blocked(self, coin_data):
+        """
+        Check if coin should be blocked from analysis
+        """
+        if not self.blocked_coins:
+            return False, None
+            
+        coin_id = coin_data.get('id', '').lower()
+        coin_symbol = coin_data.get('symbol', '').lower()
+        
+        # Check both ID and symbol
+        if coin_id in self.blocked_coins:
+            return True, f"ID '{coin_id}' is blocked"
+        
+        if coin_symbol in self.blocked_coins:
+            return True, f"Symbol '{coin_symbol}' is blocked"
+        
+        return False, None
 
     def load_market_data(self):
         cache_file = os.path.join(os.path.dirname(__file__), '..', '..', 'cache', 'high_risk_market_data.json')
@@ -105,9 +153,15 @@ class DualConfirmationAnalyzer:
 
     def analyze_coin_dual_confirmation(self, coin_data):
         """
-        Analyze coin with dual confirmation: CipherB + StochRSI
+        Analyze coin with dual confirmation + dynamic blocked coin filtering
         """
         symbol = coin_data.get('symbol', '').upper()
+        
+        # NEW: Check if coin is dynamically blocked
+        is_blocked, block_reason = self.is_coin_blocked(coin_data)
+        if is_blocked:
+            print(f"🚫 {symbol}: BLOCKED - {block_reason}")
+            return None
         
         try:
             # Step 1: Fetch 15m data for CipherB
@@ -210,16 +264,17 @@ class DualConfirmationAnalyzer:
 
     def run_dual_confirmation_analysis(self):
         """
-        Run complete dual confirmation analysis
+        Run complete dual confirmation analysis with dynamic blocked coin filtering
         """
         ist_current = get_ist_time()
         
         print("="*80)
-        print("🎯 DUAL CONFIRMATION ANALYSIS")
+        print("🎯 DUAL CONFIRMATION ANALYSIS + DYNAMIC BLOCKING")
         print("="*80)
         print(f"🕐 Analysis Time: {ist_current.strftime('%Y-%m-%d %H:%M:%S IST')}")
         print(f"📊 CipherB 15m + StochRSI 3h confirmation system")
         print(f"⚡ Fresh signals only (within 2 minutes)")
+        print(f"🚫 Dynamic blocked coins: {len(self.blocked_coins)}")
         print(f"🔍 Coins to analyze: {len(self.market_data)}")
         print("="*80)
         
@@ -230,9 +285,10 @@ class DualConfirmationAnalyzer:
         # Cleanup old signals
         self.deduplicator.cleanup_old_signals()
         
-        # Process coins
+        # Process coins with dynamic blocking
         confirmed_signals = []
-        batch_size = 12  # Reduced for dual timeframe fetching
+        blocked_count = 0
+        batch_size = 12
         total_analyzed = 0
         
         for i in range(0, len(self.market_data), batch_size):
@@ -243,6 +299,12 @@ class DualConfirmationAnalyzer:
             print(f"\n🔄 Processing batch {batch_num}/{total_batches}")
             
             for coin in batch:
+                # Check dynamic blocking first
+                is_blocked, block_reason = self.is_coin_blocked(coin)
+                if is_blocked:
+                    blocked_count += 1
+                    continue
+                
                 signal_result = self.analyze_coin_dual_confirmation(coin)
                 if signal_result:
                     confirmed_signals.append(signal_result)
@@ -274,9 +336,11 @@ class DualConfirmationAnalyzer:
             print(f"\n📊 No confirmed signals detected")
         
         print(f"\n" + "="*80)
-        print("🎯 DUAL CONFIRMATION ANALYSIS COMPLETE")
+        print("🎯 DUAL CONFIRMATION + DYNAMIC BLOCKING COMPLETE")
         print("="*80)
-        print(f"📊 Total analyzed: {total_analyzed}")
+        print(f"📊 Total in cache: {len(self.market_data)}")
+        print(f"🚫 Dynamically blocked: {blocked_count}")
+        print(f"🔍 Actually analyzed: {total_analyzed}")
         print(f"🚨 Confirmed signals: {len(confirmed_signals)}")
         print(f"📱 Alert sent: {'Yes' if confirmed_signals else 'No'}")
         print("="*80)
