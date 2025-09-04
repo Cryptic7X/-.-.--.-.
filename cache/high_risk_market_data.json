@@ -1,0 +1,15 @@
+{
+  "coins": [],
+  "metadata": {
+    "total_coins": 0,
+    "updated_at": "2025-09-04T15:56:25.413134",
+    "filter_criteria": {
+      "min_market_cap": 50000000,
+      "min_volume_24h": 5000000,
+      "max_coins": 500,
+      "blocked_coins_count": 20
+    },
+    "filter_stats": {},
+    "api_source": "CoinGecko Pro"
+  }
+}

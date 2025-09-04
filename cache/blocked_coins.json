@@ -1,0 +1,26 @@
+{
+  "blocked_coins": [
+    "tether",
+    "usd-coin",
+    "binance-usd",
+    "dai",
+    "true-usd",
+    "paxos-standard",
+    "gemini-dollar",
+    "frax",
+    "terrausd",
+    "neutrino",
+    "magic-internet-money",
+    "fei-usd",
+    "liquity-usd",
+    "alchemix-usd",
+    "olympus",
+    "wonderland",
+    "bitcoin-cash-sv",
+    "bitcoin-gold",
+    "bitcoin-diamond",
+    "bitcoin-private"
+  ],
+  "updated_at": "2025-09-04T15:56:25.297935",
+  "total_blocked": 20
+}
