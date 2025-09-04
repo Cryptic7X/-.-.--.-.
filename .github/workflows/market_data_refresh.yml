@@ -9,7 +9,7 @@ on:
 jobs:
   market_data_refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout Repository
@@ -23,34 +23,80 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests pycoingecko pyyaml
+          pip install requests pyyaml
 
-      - name: Refresh Market Data Cache
+      - name: Create Data Directories
+        run: |
+          mkdir -p cache
+          mkdir -p src/data_refresh
+
+      - name: Run Market Data Refresh
         env:
           # COINGECKO_API_KEY only needed for market data refresh
           COINGECKO_API_KEY: ${{ secrets.COINGECKO_API_KEY }}
-          # TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          # TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python src/data_refresh/market_data_refresh.py
+
+      - name: Verify Cache Files
         run: |
-          python -c "
-          import requests
-          import json
-          import os
-          from datetime import datetime
+          echo "=== Market Data Cache ==="
+          if [ -f cache/high_risk_market_data.json ]; then
+            echo "✅ Market data cache exists"
+            echo "Coins count: $(cat cache/high_risk_market_data.json | python -c "import sys, json; data=json.load(sys.stdin); print(len(data.get('coins', [])))")"
+          else
+            echo "❌ Market data cache missing"
+          fi
           
-          # Market data refresh logic here
-          # Filter coins by market cap, volume, etc.
-          # Save to cache/high_risk_market_data.json
-          
-          print('Market data refresh completed')
-          "
+          echo "=== Blocked Coins Cache ==="
+          if [ -f cache/blocked_coins.json ]; then
+            echo "✅ Blocked coins cache exists"
+            echo "Blocked count: $(cat cache/blocked_coins.json | python -c "import sys, json; data=json.load(sys.stdin); print(len(data.get('blocked_coins', [])))")"
+          else
+            echo "❌ Blocked coins cache missing"
+          fi
 
       - name: Commit Market Data Cache
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
           if [ -f cache/high_risk_market_data.json ]; then
             git add cache/high_risk_market_data.json
-            git commit -m "Update market data cache [skip ci]" || echo "No changes"
-            git push || echo "Push failed"
+            echo "✅ Added market data cache"
           fi
+          
+          if [ -f cache/blocked_coins.json ]; then
+            git add cache/blocked_coins.json
+            echo "✅ Added blocked coins cache"
+          fi
+          
+          git commit -m "Update market data and blocked coins cache [skip ci]" || echo "No changes to commit"
+          git push || echo "Push failed"
+
+      - name: Notify Success
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          COIN_COUNT=$(cat cache/high_risk_market_data.json | python -c "import sys, json; data=json.load(sys.stdin); print(len(data.get('coins', [])))" 2>/dev/null || echo "0")
+          BLOCKED_COUNT=$(cat cache/blocked_coins.json | python -c "import sys, json; data=json.load(sys.stdin); print(len(data.get('blocked_coins', [])))" 2>/dev/null || echo "0")
+          
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            -d text="✅ Market Data Refresh Complete
+          📊 Filtered coins: ${COIN_COUNT}
+          🚫 Blocked coins: ${BLOCKED_COUNT}
+          🕐 Updated: $(date '+%H:%M:%S UTC')" \
+            -d parse_mode="Markdown"
+
+      - name: Notify Failure
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            -d text="❌ Market Data Refresh failed at $(date '+%H:%M:%S UTC')" \
+            -d parse_mode="Markdown"
